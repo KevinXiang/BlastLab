@@ -1,10 +1,10 @@
 import { initRenderer } from './renderer';
-import { createBuildings } from './scene';
+import { createScene } from './scene';
 
 const container = document.getElementById('app')!;
 const { camera, renderer, scene } = initRenderer(container);
 
-createBuildings();
+createScene();
 
 function animate() {
   requestAnimationFrame(animate);

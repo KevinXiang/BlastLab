@@ -21,3 +21,15 @@ export const BUILDING_MIN_DEPTH = 2;
 export const BUILDING_MAX_DEPTH = 4;
 export const BUILDING_MIN_HEIGHT = 3;
 export const BUILDING_MAX_HEIGHT = 10;
+
+// 道路
+export const ROAD_WIDTH = 3;
+export const ROAD_LINE_GAP = 0.8;
+export const ROAD_LINE_LENGTH = 1.2;
+
+// 车辆颜色
+export const VEHICLE_COLORS = [0xe86040, 0x4080e8, 0xf0c040, 0x40c060, 0xe0e0e0];
+
+// 环境装饰
+export const TREE_TRUNK_COLOR = 0x8B7355;
+export const TREE_LEAF_COLOR = 0x5a8a3c;
