@@ -21,4 +21,3 @@ export const BUILDING_MIN_DEPTH = 2;
 export const BUILDING_MAX_DEPTH = 4;
 export const BUILDING_MIN_HEIGHT = 3;
 export const BUILDING_MAX_HEIGHT = 10;
-export const BUILDING_COUNT = 8;

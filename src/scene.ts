@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {
   BUILDING_COLORS, BUILDING_MIN_WIDTH, BUILDING_MAX_WIDTH,
   BUILDING_MIN_DEPTH, BUILDING_MAX_DEPTH,
-  BUILDING_MIN_HEIGHT, BUILDING_MAX_HEIGHT, BUILDING_COUNT,
+  BUILDING_MIN_HEIGHT, BUILDING_MAX_HEIGHT,
 } from './constants';
 import { getScene } from './renderer';
 
@@ -28,7 +28,7 @@ export function createBuildings(): void {
     { x: 7, z: 5 }, { x: 0, z: 9 },
   ];
 
-  for (let i = 0; i < BUILDING_COUNT; i++) {
+  for (let i = 0; i < positions.length; i++) {
     const w = rand(BUILDING_MIN_WIDTH, BUILDING_MAX_WIDTH);
     const d = rand(BUILDING_MIN_DEPTH, BUILDING_MAX_DEPTH);
     const h = rand(BUILDING_MIN_HEIGHT, BUILDING_MAX_HEIGHT);
