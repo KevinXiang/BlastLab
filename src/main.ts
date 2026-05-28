@@ -1,7 +1,12 @@
 import { initRenderer, getCamera } from './renderer';
 import { createScene } from './scene';
 import { createInputState, setupInput } from './input';
-import { CAMERA_ZOOM } from './constants';
+import {
+  CAMERA_ZOOM, CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM,
+  CAMERA_ORBIT_DISTANCE, CAMERA_ELEVATION,
+  CAMERA_ROTATE_SPEED, CAMERA_ZOOM_SPEED,
+  CAMERA_DRAG_SENSITIVITY, CAMERA_SCROLL_SENSITIVITY,
+} from './constants';
 
 const container = document.getElementById('app')!;
 const { camera, renderer, scene } = initRenderer(container);
@@ -14,31 +19,30 @@ setupInput(input);
 let cameraAngle = Math.PI / 4;
 let zoomLevel = CAMERA_ZOOM;
 let prevMouseX = 0;
-let prevMouseY = 0;
 
-function updateCamera(): void {
+function updateCamera(dt: number): void {
   // 右键拖拽旋转
   if (input.rightMouseDown) {
     const dx = input.mouseX - prevMouseX;
-    cameraAngle += dx * 0.005;
+    cameraAngle += dx * CAMERA_DRAG_SENSITIVITY * dt;
   }
 
   // 键盘旋转
-  if (input.rotateLeft) cameraAngle += 0.03;
-  if (input.rotateRight) cameraAngle -= 0.03;
+  if (input.rotateLeft) cameraAngle += CAMERA_ROTATE_SPEED * dt;
+  if (input.rotateRight) cameraAngle -= CAMERA_ROTATE_SPEED * dt;
 
   // 缩放
   if (input.scrollDelta !== 0) {
-    zoomLevel += input.scrollDelta * 0.01;
-    zoomLevel = Math.max(6, Math.min(25, zoomLevel));
+    zoomLevel += input.scrollDelta * CAMERA_SCROLL_SENSITIVITY * dt;
+    zoomLevel = Math.max(CAMERA_MIN_ZOOM, Math.min(CAMERA_MAX_ZOOM, zoomLevel));
     input.scrollDelta = 0;
   }
-  if (input.zoomIn) zoomLevel -= 0.1;
-  if (input.zoomOut) zoomLevel += 0.1;
-  zoomLevel = Math.max(6, Math.min(25, zoomLevel));
+  if (input.zoomIn) zoomLevel -= CAMERA_ZOOM_SPEED * dt;
+  if (input.zoomOut) zoomLevel += CAMERA_ZOOM_SPEED * dt;
+  zoomLevel = Math.max(CAMERA_MIN_ZOOM, Math.min(CAMERA_MAX_ZOOM, zoomLevel));
 
-  const height = 30 * Math.sin(Math.PI / 3);
-  const horizontal = 30 * Math.cos(Math.PI / 3);
+  const height = CAMERA_ORBIT_DISTANCE * Math.sin(CAMERA_ELEVATION);
+  const horizontal = CAMERA_ORBIT_DISTANCE * Math.cos(CAMERA_ELEVATION);
   const x = horizontal * Math.sin(cameraAngle);
   const z = horizontal * Math.cos(cameraAngle);
 
@@ -54,12 +58,18 @@ function updateCamera(): void {
   cam.updateProjectionMatrix();
 
   prevMouseX = input.mouseX;
-  prevMouseY = input.mouseY;
 }
+
+let lastTime = performance.now();
 
 function animate() {
   requestAnimationFrame(animate);
-  updateCamera();
+
+  const now = performance.now();
+  const dt = Math.min((now - lastTime) / 1000, 0.1);
+  lastTime = now;
+
+  updateCamera(dt);
   renderer.render(scene, camera);
 }
 

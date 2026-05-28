@@ -61,12 +61,6 @@ export function initRenderer(container: HTMLElement) {
   scene.add(ground);
 
   window.addEventListener('resize', () => {
-    const a = container.clientWidth / container.clientHeight;
-    camera.left = frustumSize * a / -2;
-    camera.right = frustumSize * a / 2;
-    camera.top = frustumSize / 2;
-    camera.bottom = frustumSize / -2;
-    camera.updateProjectionMatrix();
     renderer.setSize(container.clientWidth, container.clientHeight);
   });
 
