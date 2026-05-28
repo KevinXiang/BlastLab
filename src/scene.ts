@@ -8,7 +8,7 @@ import {
   VEHICLE_COLORS, TREE_TRUNK_COLOR, TREE_LEAF_COLOR,
   EXPLOSIVE_RADIUS, EXPLOSIVE_HEIGHT, EXPLOSIVE_COLORS,
 } from './constants';
-import { createBuildingBody, PhysicsBody } from './physics';
+import { createBuildingBody, PhysicsBody, getWorld } from './physics';
 import { getScene } from './renderer';
 import * as CANNON from 'cannon-es';
 
@@ -162,6 +162,14 @@ export function createVehicles(): void {
     group.position.set(pos.x, 0, pos.z);
     group.rotation.y = Math.abs(pos.z) < Math.abs(pos.x) ? 0 : Math.PI / 2;
     scene.add(group);
+
+    const vehicleBody = new CANNON.Body({ mass: 200, shape: new CANNON.Box(new CANNON.Vec3(1, 0.7, 0.6)) });
+    vehicleBody.position.set(pos.x, 0.7, pos.z);
+    vehicleBody.linearDamping = 0.3;
+    vehicleBody.angularDamping = 0.3;
+    getWorld().addBody(vehicleBody);
+    physicsBodies.push({ body: vehicleBody, mesh: group, isBuilding: false });
+
     vehicles.push({ body: group, x: pos.x, z: pos.z });
   }
 }

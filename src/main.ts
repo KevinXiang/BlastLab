@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { initRenderer, getCamera } from './renderer';
 import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives } from './scene';
-import { initPhysics, getWorld } from './physics';
+import { initPhysics, DebrisPiece } from './physics';
 import { placeExplosive, detonateAll } from './game';
-import { updateParticles } from './effects';
+import { updateEffects } from './effects';
 import { createInputState, setupInput } from './input';
 import {
   CAMERA_ZOOM, CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM,
@@ -88,6 +88,7 @@ function handleClick(): void {
   input.mouseDown = false;
 }
 
+const debrisList: DebrisPiece[] = [];
 let lastTime = performance.now();
 
 function animate() {
@@ -101,7 +102,7 @@ function animate() {
   handleClick();
 
   if (input.detonate) {
-    detonateAll();
+    detonateAll(physicsBodies, debrisList, scene);
     removeAllExplosives();
     input.detonate = false;
   }
@@ -113,11 +114,29 @@ function animate() {
 
   world.step(1 / 60);
 
-  updateParticles(dt);
+  updateEffects(dt);
 
   for (const pb of physicsBodies) {
     pb.mesh.position.copy(pb.body.position as any);
     pb.mesh.quaternion.copy(pb.body.quaternion as any);
+  }
+
+  for (const d of debrisList) {
+    d.mesh.position.copy(d.body.position as any);
+    d.mesh.quaternion.copy(d.body.quaternion as any);
+    d.life -= dt;
+
+    const speed = d.body.velocity.length();
+    if (speed < 0.3 || d.life <= 0) {
+      d.mesh.scale.multiplyScalar(0.95);
+      if (d.mesh.scale.x < 0.1) {
+        world.removeBody(d.body);
+        scene.remove(d.mesh);
+        d.mesh.geometry.dispose();
+        (d.mesh.material as THREE.Material).dispose();
+        debrisList.splice(debrisList.indexOf(d), 1);
+      }
+    }
   }
 
   renderer.render(scene, camera);

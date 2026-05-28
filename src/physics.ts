@@ -77,3 +77,53 @@ export function applyExplosion(config: ExplosionConfig): void {
     body.wakeUp();
   }
 }
+
+export interface DebrisPiece {
+  body: CANNON.Body;
+  mesh: THREE.Mesh;
+  life: number;
+}
+
+export function fragmentBuilding(
+  body: CANNON.Body,
+  mesh: THREE.Mesh,
+  physicsBodies: PhysicsBody[],
+  debrisList: DebrisPiece[],
+  scene: THREE.Scene,
+): void {
+  const pos = body.position.clone();
+  const size = new CANNON.Vec3(0.4, 0.4, 0.4);
+
+  world.removeBody(body);
+  scene.remove(mesh);
+  mesh.geometry.dispose();
+  (mesh.material as THREE.Material).dispose();
+
+  const idx = physicsBodies.findIndex(pb => pb.body === body);
+  if (idx >= 0) physicsBodies.splice(idx, 1);
+
+  const pieceCount = 15 + Math.floor(Math.random() * 15);
+  for (let i = 0; i < pieceCount; i++) {
+    const pieceSize = 0.2 + Math.random() * 0.5;
+    const shape = new CANNON.Box(new CANNON.Vec3(pieceSize, pieceSize, pieceSize));
+    const pieceBody = new CANNON.Body({ mass: 5 + Math.random() * 10, shape });
+    pieceBody.position.set(
+      pos.x + (Math.random() - 0.5) * size.x,
+      pos.y + (Math.random() - 0.5) * size.y,
+      pos.z + (Math.random() - 0.5) * size.z,
+    );
+    pieceBody.linearDamping = 0.4;
+    pieceBody.angularDamping = 0.4;
+    world.addBody(pieceBody);
+
+    const pieceGeo = new THREE.BoxGeometry(pieceSize, pieceSize, pieceSize);
+    const pieceMat = new THREE.MeshToonMaterial({
+      color: (mesh.material as THREE.MeshToonMaterial).color,
+    });
+    const pieceMesh = new THREE.Mesh(pieceGeo, pieceMat);
+    pieceMesh.castShadow = true;
+    scene.add(pieceMesh);
+
+    debrisList.push({ body: pieceBody, mesh: pieceMesh, life: 4 });
+  }
+}
