@@ -1,5 +1,6 @@
 import { initRenderer, getCamera } from './renderer';
-import { createScene } from './scene';
+import { createScene, physicsBodies } from './scene';
+import { initPhysics, getWorld } from './physics';
 import { createInputState, setupInput } from './input';
 import {
   CAMERA_ZOOM, CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM,
@@ -12,6 +13,8 @@ const container = document.getElementById('app')!;
 const { camera, renderer, scene } = initRenderer(container);
 
 createScene();
+
+const world = initPhysics();
 
 const input = createInputState();
 setupInput(input);
@@ -70,6 +73,14 @@ function animate() {
   lastTime = now;
 
   updateCamera(dt);
+
+  world.step(1 / 60);
+
+  for (const pb of physicsBodies) {
+    pb.mesh.position.copy(pb.body.position as any);
+    pb.mesh.quaternion.copy(pb.body.quaternion as any);
+  }
+
   renderer.render(scene, camera);
 }
 

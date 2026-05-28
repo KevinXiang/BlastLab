@@ -7,6 +7,7 @@ import {
   COLOR_ROAD, COLOR_ROAD_LINE, COLOR_SIDEWALK,
   VEHICLE_COLORS, TREE_TRUNK_COLOR, TREE_LEAF_COLOR,
 } from './constants';
+import { createBuildingBody, PhysicsBody } from './physics';
 import { getScene } from './renderer';
 
 interface Building {
@@ -17,6 +18,7 @@ interface Building {
 }
 
 export const buildings: Building[] = [];
+export const physicsBodies: PhysicsBody[] = [];
 
 function rand(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -47,6 +49,10 @@ export function createBuildings(): void {
     mesh.position.set(pos.x, h / 2, pos.z);
 
     scene.add(mesh);
+
+    const body = createBuildingBody(w, h, d, pos.x, pos.z);
+    physicsBodies.push({ body, mesh, isBuilding: true });
+
     buildings.push({ mesh, width: w, depth: d, height: h });
   }
 }
