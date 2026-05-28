@@ -41,3 +41,13 @@ export const VEHICLE_COLORS = [0xe86040, 0x4080e8, 0xf0c040, 0x40c060, 0xe0e0e0]
 // 环境装饰
 export const TREE_TRUNK_COLOR = 0x8B7355;
 export const TREE_LEAF_COLOR = 0x5a8a3c;
+
+// 爆炸物
+export const EXPLOSIVE_RADIUS = 0.3;
+export const EXPLOSIVE_HEIGHT = 0.6;
+export const EXPLOSIVE_COLORS: Record<string, number> = {
+  tnt: 0xcc6600,
+  c4: 0x3366cc,
+  nitroglycerin: 0x8B4513,
+  nuke: 0xcc0000,
+};

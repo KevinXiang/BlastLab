@@ -1,6 +1,9 @@
+import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
 import { initRenderer, getCamera } from './renderer';
-import { createScene, physicsBodies } from './scene';
+import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives } from './scene';
 import { initPhysics, getWorld } from './physics';
+import { placeExplosive, detonateAll } from './game';
 import { createInputState, setupInput } from './input';
 import {
   CAMERA_ZOOM, CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM,
@@ -24,17 +27,14 @@ let zoomLevel = CAMERA_ZOOM;
 let prevMouseX = 0;
 
 function updateCamera(dt: number): void {
-  // 右键拖拽旋转
   if (input.rightMouseDown) {
     const dx = input.mouseX - prevMouseX;
     cameraAngle += dx * CAMERA_DRAG_SENSITIVITY * dt;
   }
 
-  // 键盘旋转
   if (input.rotateLeft) cameraAngle += CAMERA_ROTATE_SPEED * dt;
   if (input.rotateRight) cameraAngle -= CAMERA_ROTATE_SPEED * dt;
 
-  // 缩放
   if (input.scrollDelta !== 0) {
     zoomLevel += input.scrollDelta * CAMERA_SCROLL_SENSITIVITY * dt;
     zoomLevel = Math.max(CAMERA_MIN_ZOOM, Math.min(CAMERA_MAX_ZOOM, zoomLevel));
@@ -63,6 +63,30 @@ function updateCamera(dt: number): void {
   prevMouseX = input.mouseX;
 }
 
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+function handleClick(): void {
+  if (!input.mouseDown) return;
+
+  mouse.x = (input.mouseX / container.clientWidth) * 2 - 1;
+  mouse.y = -(input.mouseY / container.clientHeight) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, getCamera());
+
+  const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const intersection = new THREE.Vector3();
+  raycaster.ray.intersectPlane(groundPlane, intersection);
+
+  if (intersection) {
+    const pos = new CANNON.Vec3(intersection.x, 0, intersection.z);
+    placeExplosive('tnt', pos);
+    createExplosiveMesh('tnt', pos);
+  }
+
+  input.mouseDown = false;
+}
+
 let lastTime = performance.now();
 
 function animate() {
@@ -73,6 +97,18 @@ function animate() {
   lastTime = now;
 
   updateCamera(dt);
+  handleClick();
+
+  if (input.detonate) {
+    detonateAll();
+    removeAllExplosives();
+    input.detonate = false;
+  }
+
+  if (input.reset) {
+    removeAllExplosives();
+    input.reset = false;
+  }
 
   world.step(1 / 60);
 

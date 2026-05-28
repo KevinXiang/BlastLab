@@ -6,9 +6,11 @@ import {
   WORLD_SIZE, ROAD_WIDTH, ROAD_LINE_GAP, ROAD_LINE_LENGTH,
   COLOR_ROAD, COLOR_ROAD_LINE, COLOR_SIDEWALK,
   VEHICLE_COLORS, TREE_TRUNK_COLOR, TREE_LEAF_COLOR,
+  EXPLOSIVE_RADIUS, EXPLOSIVE_HEIGHT, EXPLOSIVE_COLORS,
 } from './constants';
 import { createBuildingBody, PhysicsBody } from './physics';
 import { getScene } from './renderer';
+import * as CANNON from 'cannon-es';
 
 interface Building {
   mesh: THREE.Mesh;
@@ -199,4 +201,34 @@ export function createScene(): void {
   createBuildings();
   createVehicles();
   createDecorations();
+}
+
+export interface PlacedExplosive {
+  mesh: THREE.Mesh;
+  position: CANNON.Vec3;
+}
+
+export const placedExplosiveMeshes: PlacedExplosive[] = [];
+
+export function createExplosiveMesh(type: string, position: CANNON.Vec3): PlacedExplosive {
+  const geo = new THREE.CylinderGeometry(EXPLOSIVE_RADIUS, EXPLOSIVE_RADIUS + 0.1, EXPLOSIVE_HEIGHT, 8);
+  const mat = new THREE.MeshToonMaterial({ color: EXPLOSIVE_COLORS[type] || 0xff0000 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(position as any);
+  mesh.position.y += EXPLOSIVE_HEIGHT / 2;
+  mesh.castShadow = true;
+  getScene().add(mesh);
+
+  const exp: PlacedExplosive = { mesh, position: position.clone() };
+  placedExplosiveMeshes.push(exp);
+  return exp;
+}
+
+export function removeAllExplosives(): void {
+  for (const exp of placedExplosiveMeshes) {
+    getScene().remove(exp.mesh);
+    exp.mesh.geometry.dispose();
+    (exp.mesh.material as THREE.Material).dispose();
+  }
+  placedExplosiveMeshes.length = 0;
 }
