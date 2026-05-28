@@ -1,7 +1,12 @@
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 import { applyExplosion, fragmentBuilding, DebrisPiece, PhysicsBody } from './physics';
-import { spawnExplosionEffect, spawnMushroomCloud } from './effects';
+import {
+  spawnNitroglycerinEffect,
+  spawnTntEffect,
+  spawnC4Effect,
+  spawnNukeEffect,
+} from './effects';
 import { EXPLOSIVE_DEFS, ExplosiveDef } from './constants';
 
 interface PlacedExplosiveData {
@@ -25,7 +30,7 @@ export function detonateAll(
   scene: THREE.Scene,
 ): void {
   for (const exp of placedExplosives) {
-    const { position, def } = exp;
+    const { position, def, type } = exp;
 
     for (const pb of physicsBodies) {
       const dist = pb.body.position.distanceTo(position);
@@ -41,13 +46,13 @@ export function detonateAll(
     }
 
     applyExplosion({ position, radius: def.radius, baseForce: def.baseForce });
-    spawnExplosionEffect(
-      new THREE.Vector3(exp.position.x, 1, exp.position.z),
-      40,
-    );
 
-    if (exp.type === 'nuke') {
-      spawnMushroomCloud(new THREE.Vector3(exp.position.x, 0, exp.position.z));
+    const pos3 = new THREE.Vector3(exp.position.x, 1, exp.position.z);
+    switch (type) {
+      case 'nitroglycerin': spawnNitroglycerinEffect(pos3); break;
+      case 'c4': spawnC4Effect(pos3); break;
+      case 'nuke': spawnNukeEffect(pos3); break;
+      default: spawnTntEffect(pos3); break;
     }
   }
   placedExplosives = [];
