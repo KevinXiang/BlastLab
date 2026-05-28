@@ -22,7 +22,7 @@ const world = initPhysics();
 createScene();
 
 const input = createInputState();
-setupInput(input);
+setupInput(input, renderer.domElement);
 
 const uiState = createUI(container);
 

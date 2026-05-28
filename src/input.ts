@@ -28,7 +28,7 @@ export function createInputState(): InputState {
   };
 }
 
-export function setupInput(input: InputState): void {
+export function setupInput(input: InputState, canvas: HTMLCanvasElement): void {
   window.addEventListener('keydown', (e) => {
     switch (e.key.toLowerCase()) {
       case 'q': input.rotateLeft = true; break;
@@ -54,7 +54,7 @@ export function setupInput(input: InputState): void {
   });
 
   window.addEventListener('mousedown', (e) => {
-    if (e.button === 0) input.mouseDown = true;
+    if (e.button === 0 && e.target === canvas) input.mouseDown = true;
     if (e.button === 2) input.rightMouseDown = true;
     input.mouseX = e.clientX;
     input.mouseY = e.clientY;
