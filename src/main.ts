@@ -5,6 +5,7 @@ import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives } 
 import { initPhysics, DebrisPiece } from './physics';
 import { placeExplosive, detonateAll } from './game';
 import { updateEffects } from './effects';
+import { createUI, updateUI } from './ui';
 import { createInputState, setupInput } from './input';
 import {
   CAMERA_ZOOM, CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM,
@@ -16,12 +17,14 @@ import {
 const container = document.getElementById('app')!;
 const { camera, renderer, scene } = initRenderer(container);
 
-createScene();
-
 const world = initPhysics();
+
+createScene();
 
 const input = createInputState();
 setupInput(input);
+
+const uiState = createUI(container);
 
 let cameraAngle = Math.PI / 4;
 let zoomLevel = CAMERA_ZOOM;
@@ -67,6 +70,20 @@ function updateCamera(dt: number): void {
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
+function getGroundIntersection(clientX: number, clientY: number): THREE.Vector3 | null {
+  const rect = container.getBoundingClientRect();
+  const x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  const y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(new THREE.Vector2(x, y), getCamera());
+  const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const intersection = new THREE.Vector3();
+  if (raycaster.ray.intersectPlane(groundPlane, intersection)) {
+    return intersection;
+  }
+  return null;
+}
+
 function handleClick(): void {
   if (!input.mouseDown) return;
 
@@ -81,12 +98,30 @@ function handleClick(): void {
 
   if (intersection) {
     const pos = new CANNON.Vec3(intersection.x, 0, intersection.z);
-    placeExplosive('tnt', pos);
-    createExplosiveMesh('tnt', pos);
+    placeExplosive(uiState.selectedExplosive, pos);
+    createExplosiveMesh(uiState.selectedExplosive, pos);
   }
 
   input.mouseDown = false;
 }
+
+container.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  e.dataTransfer!.dropEffect = 'move';
+});
+
+container.addEventListener('drop', (e) => {
+  e.preventDefault();
+  const type = e.dataTransfer!.getData('text/plain');
+  if (!type) return;
+
+  const intersection = getGroundIntersection(e.clientX, e.clientY);
+  if (intersection) {
+    const pos = new CANNON.Vec3(intersection.x, 0, intersection.z);
+    placeExplosive(type, pos);
+    createExplosiveMesh(type, pos);
+  }
+});
 
 const debrisList: DebrisPiece[] = [];
 let lastTime = performance.now();
@@ -100,6 +135,7 @@ function animate() {
 
   updateCamera(dt);
   handleClick();
+  updateUI(container, uiState);
 
   if (input.detonate) {
     detonateAll(physicsBodies, debrisList, scene);

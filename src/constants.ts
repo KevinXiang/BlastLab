@@ -51,3 +51,17 @@ export const EXPLOSIVE_COLORS: Record<string, number> = {
   nitroglycerin: 0x8B4513,
   nuke: 0xcc0000,
 };
+
+export interface ExplosiveDef {
+  radius: number;
+  baseForce: number;
+  color: number;
+  label: string;
+}
+
+export const EXPLOSIVE_DEFS: Record<string, ExplosiveDef> = {
+  nitroglycerin: { radius: 3, baseForce: 500, color: 0x8B4513, label: '硝酸甘油' },
+  tnt: { radius: 8, baseForce: 800, color: 0xcc6600, label: 'TNT' },
+  c4: { radius: 6, baseForce: 1200, color: 0x3366cc, label: 'C4' },
+  nuke: { radius: 30, baseForce: 3000, color: 0xcc0000, label: '原子弹' },
+};
