@@ -152,7 +152,7 @@ export function createVehicles(): void {
     }
 
     group.position.set(pos.x, 0, pos.z);
-    group.rotation.y = Math.random() > 0.5 ? 0 : Math.PI / 2;
+    group.rotation.y = Math.abs(pos.z) < Math.abs(pos.x) ? 0 : Math.PI / 2;
     scene.add(group);
     vehicles.push({ body: group, x: pos.x, z: pos.z });
   }
