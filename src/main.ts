@@ -4,6 +4,7 @@ import { initRenderer, getCamera } from './renderer';
 import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives } from './scene';
 import { initPhysics, getWorld } from './physics';
 import { placeExplosive, detonateAll } from './game';
+import { updateParticles } from './effects';
 import { createInputState, setupInput } from './input';
 import {
   CAMERA_ZOOM, CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM,
@@ -111,6 +112,8 @@ function animate() {
   }
 
   world.step(1 / 60);
+
+  updateParticles(dt);
 
   for (const pb of physicsBodies) {
     pb.mesh.position.copy(pb.body.position as any);
