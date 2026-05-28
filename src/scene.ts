@@ -211,6 +211,101 @@ export function createScene(): void {
   createDecorations();
 }
 
+// Single-item constructors for UI placement
+export function createSingleBuilding(x: number, z: number): void {
+  const scene = getScene();
+  const w = rand(BUILDING_MIN_WIDTH, BUILDING_MAX_WIDTH);
+  const d = rand(BUILDING_MIN_DEPTH, BUILDING_MAX_DEPTH);
+  const h = rand(BUILDING_MIN_HEIGHT, BUILDING_MAX_HEIGHT);
+  const color = BUILDING_COLORS[Math.floor(Math.random() * BUILDING_COLORS.length)];
+
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const mat = new THREE.MeshToonMaterial({ color });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.position.set(x, h / 2, z);
+  scene.add(mesh);
+
+  const body = createBuildingBody(w, h, d, x, z);
+  physicsBodies.push({ body, mesh, isBuilding: true });
+  buildings.push({ mesh, width: w, depth: d, height: h });
+}
+
+export function createSingleVehicle(x: number, z: number): void {
+  const scene = getScene();
+  const color = VEHICLE_COLORS[Math.floor(Math.random() * VEHICLE_COLORS.length)];
+  const group = new THREE.Group();
+
+  const bodyGeo = new THREE.BoxGeometry(2, 1, 1.2);
+  const bodyMat = new THREE.MeshToonMaterial({ color });
+  const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+  bodyMesh.position.y = 0.6;
+  bodyMesh.castShadow = true;
+  group.add(bodyMesh);
+
+  const roofGeo = new THREE.BoxGeometry(1.2, 0.5, 1.1);
+  const roofMat = new THREE.MeshToonMaterial({ color: 0x333333 });
+  const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+  roofMesh.position.set(0, 1.15, 0);
+  roofMesh.castShadow = true;
+  group.add(roofMesh);
+
+  const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.2, 8);
+  const wheelMat = new THREE.MeshToonMaterial({ color: 0x111111 });
+  const wheelOffsets = [
+    { x: -0.7, y: 0.3, z: 0.65 },
+    { x: 0.7, y: 0.3, z: 0.65 },
+    { x: -0.7, y: 0.3, z: -0.65 },
+    { x: 0.7, y: 0.3, z: -0.65 },
+  ];
+  for (const wo of wheelOffsets) {
+    const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+    wheel.rotation.x = Math.PI / 2;
+    wheel.position.set(wo.x, wo.y, wo.z);
+    wheel.castShadow = true;
+    group.add(wheel);
+  }
+
+  group.position.set(x, 0, z);
+  const roadAngle = Math.abs(z) < Math.abs(x) ? 0 : Math.PI / 2;
+  group.rotation.y = roadAngle;
+  scene.add(group);
+
+  const vehicleBody = new CANNON.Body({
+    mass: 200,
+    shape: new CANNON.Box(new CANNON.Vec3(1, 0.7, 0.6)),
+  });
+  vehicleBody.position.set(x, 0.7, z);
+  vehicleBody.linearDamping = 0.3;
+  vehicleBody.angularDamping = 0.3;
+  getWorld().addBody(vehicleBody);
+  physicsBodies.push({ body: vehicleBody, mesh: group, isBuilding: false });
+  vehicles.push({ body: group, x, z });
+}
+
+export function createSingleTree(x: number, z: number): void {
+  const scene = getScene();
+  const tree = new THREE.Group();
+
+  const trunkGeo = new THREE.CylinderGeometry(0.15, 0.2, 1.5, 6);
+  const trunkMat = new THREE.MeshToonMaterial({ color: TREE_TRUNK_COLOR });
+  const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+  trunk.position.y = 0.75;
+  trunk.castShadow = true;
+  tree.add(trunk);
+
+  const leafGeo = new THREE.SphereGeometry(0.8 + Math.random() * 0.4, 6, 4);
+  const leafMat = new THREE.MeshToonMaterial({ color: TREE_LEAF_COLOR });
+  const leaf = new THREE.Mesh(leafGeo, leafMat);
+  leaf.position.y = 1.8;
+  leaf.castShadow = true;
+  tree.add(leaf);
+
+  tree.position.set(x, 0, z);
+  scene.add(tree);
+}
+
 export interface PlacedExplosive {
   mesh: THREE.Mesh | THREE.Group;
   position: CANNON.Vec3;

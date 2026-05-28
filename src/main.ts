@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { initRenderer, getCamera } from './renderer';
-import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives } from './scene';
+import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives, createSingleBuilding, createSingleVehicle, createSingleTree } from './scene';
 import { initPhysics, DebrisPiece } from './physics';
 import { placeExplosive, detonateAll } from './game';
 import { updateEffects } from './effects';
@@ -98,8 +98,12 @@ function handleClick(): void {
 
   if (intersection) {
     const pos = new CANNON.Vec3(intersection.x, 0, intersection.z);
-    placeExplosive(uiState.selectedExplosive, pos);
-    createExplosiveMesh(uiState.selectedExplosive, pos);
+    if (uiState.selectedConstruct) {
+      placeConstruct(uiState.selectedConstruct, intersection.x, intersection.z);
+    } else {
+      placeExplosive(uiState.selectedExplosive, pos);
+      createExplosiveMesh(uiState.selectedExplosive, pos);
+    }
   }
 
   input.mouseDown = false;
@@ -112,19 +116,31 @@ container.addEventListener('dragover', (e) => {
 
 container.addEventListener('drop', (e) => {
   e.preventDefault();
-  const type = e.dataTransfer!.getData('text/plain');
-  if (!type) return;
+  const data = e.dataTransfer!.getData('text/plain');
+  if (!data) return;
 
   const intersection = getGroundIntersection(e.clientX, e.clientY);
-  if (intersection) {
+  if (!intersection) return;
+
+  if (data.startsWith('construct:')) {
+    placeConstruct(data.slice('construct:'.length), intersection.x, intersection.z);
+  } else {
     const pos = new CANNON.Vec3(intersection.x, 0, intersection.z);
-    placeExplosive(type, pos);
-    createExplosiveMesh(type, pos);
+    placeExplosive(data, pos);
+    createExplosiveMesh(data, pos);
   }
 });
 
 const debrisList: DebrisPiece[] = [];
 let lastTime = performance.now();
+
+function placeConstruct(type: string, x: number, z: number): void {
+  switch (type) {
+    case 'building': createSingleBuilding(x, z); break;
+    case 'vehicle': createSingleVehicle(x, z); break;
+    case 'tree': createSingleTree(x, z); break;
+  }
+}
 
 function animate() {
   requestAnimationFrame(animate);
