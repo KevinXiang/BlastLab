@@ -230,7 +230,7 @@ interface BurningObject {
 
 const burningObjects: BurningObject[] = [];
 
-function igniteObject(pb: PhysicsBody, fireColors: number[]): void {
+export function igniteObject(pb: PhysicsBody, fireColors: number[]): void {
   const scene = getScene();
 
   // Store original materials and replace with burning colors

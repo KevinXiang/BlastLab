@@ -6,8 +6,11 @@ import {
   spawnTntEffect,
   spawnC4Effect,
   spawnNukeEffect,
-  spawnMushroomCloud,
+  spawnClusterEffect,
+  spawnBlackHoleEffect,
+  spawnEMPEffect,
 } from './effects';
+import { BLACKHOLE_RADIUS, BLACKHOLE_SUCK_DURATION, BLACKHOLE_EJECT_FORCE } from './constants';
 import { EXPLOSIVE_DEFS, ExplosiveDef, REMOTE_RADIUS, REMOTE_FORCE, MINE_RADIUS, MINE_FORCE } from './constants';
 import { getScene } from './renderer';
 
@@ -110,6 +113,68 @@ export function addChainScore(): void {
   pendingChainScore += 50;
 }
 
+// ============================================================
+// Black Hole Physics
+// ============================================================
+interface BlackHoleInstance {
+  position: CANNON.Vec3;
+  elapsed: number;
+}
+
+const activeBlackHoles: BlackHoleInstance[] = [];
+
+function startBlackHolePhysics(position: CANNON.Vec3, world: CANNON.World): void {
+  activeBlackHoles.push({ position: position.clone(), elapsed: 0 });
+}
+
+export function updateBlackHolePhysics(dt: number): void {
+  const world = getWorld();
+  for (let i = activeBlackHoles.length - 1; i >= 0; i--) {
+    const bh = activeBlackHoles[i];
+    bh.elapsed += dt;
+
+    if (bh.elapsed < BLACKHOLE_SUCK_DURATION) {
+      // Suck phase: pull all bodies toward center
+      const suckForce = 800;
+      for (const body of world.bodies) {
+        if (body.mass === 0) continue;
+        const dx = bh.position.x - body.position.x;
+        const dy = bh.position.y - body.position.y;
+        const dz = bh.position.z - body.position.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (dist < 0.3 || dist > BLACKHOLE_RADIUS) continue;
+        const strength = suckForce / (1 + dist * dist);
+        const dir = new CANNON.Vec3(dx / dist, dy / dist, dz / dist);
+        body.applyImpulse(dir.scale(strength * dt), body.position);
+      }
+      // Add score for sucking
+      scoreState.totalScore += Math.floor(dt * 10);
+    } else if (bh.elapsed < BLACKHOLE_SUCK_DURATION + 0.5) {
+      // Charge phase: brief pause, flash
+      // (visual handled by effects.ts)
+    } else {
+      // Eject phase: explode outward
+      for (const body of world.bodies) {
+        if (body.mass === 0) continue;
+        const dx = body.position.x - bh.position.x;
+        const dy = body.position.y - bh.position.y;
+        const dz = body.position.z - bh.position.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (dist < 0.3 || dist > BLACKHOLE_RADIUS * 1.5) continue;
+        const strength = BLACKHOLE_EJECT_FORCE / (1 + dist * 0.5);
+        const dir = new CANNON.Vec3(dx / dist, dy / dist + 0.3, dz / dist);
+        dir.normalize();
+        body.applyImpulse(dir.scale(strength * dt * 2), body.position);
+      }
+      activeBlackHoles.splice(i, 1);
+      if (scoreState.totalScore > scoreState.highScore) {
+        scoreState.highScore = scoreState.totalScore;
+        saveHighScore();
+      }
+    }
+  }
+}
+
 export function detonateAll(
   physicsBodies: PhysicsBody[],
   debrisList: DebrisPiece[],
@@ -147,6 +212,12 @@ export function detonateAll(
       case 'nitroglycerin': spawnNitroglycerinEffect(pos3); break;
       case 'c4': spawnC4Effect(pos3); break;
       case 'nuke': spawnNukeEffect(pos3); break;
+      case 'cluster': spawnClusterEffect(pos3); break;
+      case 'blackhole':
+        spawnBlackHoleEffect(pos3);
+        startBlackHolePhysics(exp.position, world);
+        break;
+      case 'emp': spawnEMPEffect(pos3); break;
       default: spawnTntEffect(pos3); break;
     }
   }

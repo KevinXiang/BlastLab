@@ -3,8 +3,8 @@ import * as CANNON from 'cannon-es';
 import { initRenderer, getCamera, getScene } from './renderer';
 import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives, createSingleBuilding, createSingleVehicle, createSingleTree, createSandbag, createBarricade, createMineModel, createRemoteBombModel } from './scene';
 import { initPhysics, DebrisPiece } from './physics';
-import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives, scoreState, loadHighScore, resetScore, addChainScore } from './game';
-import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect, sprayFlameEffect, sprayIceEffect, sprayParticleEffect, getScreenFlash } from './effects';
+import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives, scoreState, loadHighScore, resetScore, addChainScore, updateBlackHolePhysics } from './game';
+import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect, sprayFlameEffect, sprayIceEffect, sprayParticleEffect, getScreenFlash, igniteObject } from './effects';
 import { createUI, updateUI, showFloatText } from './ui';
 import { createInputState, setupInput } from './input';
 import { createWeaponPanel, WeaponPanelState } from './weaponpanel';
@@ -217,7 +217,16 @@ function addScreenShake(intensity: number, duration: number): void {
   shakeDuration = Math.max(shakeDuration, duration);
 }
 
+// Track per-body spray exposure time for threshold effects
+const sprayExposure = new Map<number, { time: number; mode: string }>();
+
+function getBodyKey(pb: { body: CANNON.Body }): number {
+  return pb.body.id;
+}
+
 function applySprayForce(origin: THREE.Vector3, direction: THREE.Vector3, range: number, force: number, dt: number, mode: 'burn' | 'freeze' | 'push'): void {
+  const exposedIds = new Set<number>();
+
   for (const pb of physicsBodies) {
     if (pb.body.mass === 0) continue;
     const p = new THREE.Vector3(pb.body.position.x, pb.body.position.y, pb.body.position.z);
@@ -227,13 +236,84 @@ function applySprayForce(origin: THREE.Vector3, direction: THREE.Vector3, range:
     const toTargetNorm = toTarget.normalize();
     const dot = toTargetNorm.dot(direction);
     if (dot < 0.7) continue;
+
+    const key = getBodyKey(pb);
+    exposedIds.add(key);
+
     if (mode === 'freeze') {
       pb.body.velocity.scale(1 - (1 - force) * dt * (1 - dist / range), pb.body.velocity);
-    } else {
+      // Accumulate exposure for ice effect
+      const exp = sprayExposure.get(key) || { time: 0, mode: 'freeze' };
+      exp.time += dt;
+      sprayExposure.set(key, exp);
+      // Freeze building after 1.5s exposure
+      if (exp.time > 1.5 && pb.isBuilding) {
+        freezeBuilding(pb);
+      }
+    } else if (mode === 'burn') {
       const impulse = direction.clone().multiplyScalar(force * dt * (1 - dist / range));
       pb.body.applyImpulse(new CANNON.Vec3(impulse.x, impulse.y, impulse.z), pb.body.position);
+      // Accumulate exposure for burn effect
+      const exp = sprayExposure.get(key) || { time: 0, mode: 'burn' };
+      exp.time += dt;
+      sprayExposure.set(key, exp);
+      // Ignite building/tree after 2s exposure
+      if (exp.time > 2 && (pb.isBuilding || pb.isTree)) {
+        igniteObject(pb, [0xff4400, 0xff6600, 0xff8800, 0xffaa00, 0xff2200]);
+        sprayExposure.delete(key);
+        scoreState.totalScore += 150;
+      }
+    } else {
+      // Push — strong force + damage
+      const impulse = direction.clone().multiplyScalar(force * dt * (1 - dist / range));
+      pb.body.applyImpulse(new CANNON.Vec3(impulse.x, impulse.y, impulse.z), pb.body.position);
+      const exp = sprayExposure.get(key) || { time: 0, mode: 'push' };
+      exp.time += dt;
+      sprayExposure.set(key, exp);
+      // Disintegrate building after 1.5s exposure
+      if (exp.time > 1.5 && pb.isBuilding) {
+        fragmentBuildingBySpray(pb);
+        sprayExposure.delete(key);
+        scoreState.totalScore += 300;
+      }
     }
   }
+
+  // Clean up exposure for bodies no longer in spray cone
+  for (const [key, exp] of sprayExposure) {
+    if (!exposedIds.has(key)) {
+      sprayExposure.delete(key);
+    }
+  }
+}
+
+function freezeBuilding(pb: { mesh: THREE.Mesh | THREE.Group; body: CANNON.Body }): void {
+  pb.mesh.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      const mat = child.material as THREE.MeshToonMaterial;
+      if (mat.color) {
+        mat.color.setHex(0xaaccff);
+      }
+    }
+  });
+  pb.body.mass *= 0.5;
+  pb.body.linearDamping = 0.9;
+}
+
+function fragmentBuildingBySpray(pb: { body: CANNON.Body; mesh: THREE.Mesh | THREE.Group; isBuilding?: boolean }): void {
+  // Mark as building for fragmentBuilding
+  pb.isBuilding = true;
+  // Directly remove the body from physics and mesh from scene as "disintegration"
+  const scene = getScene();
+  const world = (pb.body as any).world;
+  if (world) world.removeBody(pb.body);
+  scene.remove(pb.mesh);
+  pb.mesh.traverse((c) => {
+    if (c instanceof THREE.Mesh) { c.geometry.dispose(); (c.material as THREE.Material).dispose(); }
+  });
+  // Remove from physicsBodies
+  const idx = physicsBodies.indexOf(pb as any);
+  if (idx !== -1) physicsBodies.splice(idx, 1);
 }
 
 function animate() {
@@ -297,6 +377,9 @@ function animate() {
     flashEl.style.opacity = String(flash * 0.4);
     if (flash < 0.02) flashEl.style.opacity = '0';
   }
+
+  // Black hole physics
+  updateBlackHolePhysics(dt);
 
   // Panel toggle
   if (input.togglePanel) {
