@@ -3,7 +3,7 @@ import * as CANNON from 'cannon-es';
 import { initRenderer, getCamera, getScene } from './renderer';
 import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives, createSingleBuilding, createSingleVehicle, createSingleTree, createSandbag, createBarricade, createMineModel, createRemoteBombModel } from './scene';
 import { initPhysics, DebrisPiece } from './physics';
-import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine } from './game';
+import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives } from './game';
 import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect } from './effects';
 import { createUI, updateUI } from './ui';
 import { createInputState, setupInput } from './input';
@@ -118,6 +118,24 @@ container.addEventListener('drop', (e) => {
   const intersection = getGroundIntersection(e.clientX, e.clientY);
   if (!intersection) return;
   placeItem(type, intersection.x, intersection.z);
+});
+
+window.addEventListener('game-detonate', () => {
+  input.detonate = true;
+});
+
+window.addEventListener('game-reset', () => {
+  removeAllExplosives();
+  clearPlacedExplosives();
+  clearRemoteBombs();
+  clearMines();
+  for (const d of debrisList) {
+    world.removeBody(d.body);
+    scene.remove(d.mesh);
+    d.mesh.geometry.dispose();
+    (d.mesh.material as THREE.Material).dispose();
+  }
+  debrisList.length = 0;
 });
 
 const debrisList: DebrisPiece[] = [];

@@ -124,7 +124,7 @@ export function createWeaponPanel(container: HTMLElement): WeaponPanelState {
     font-weight: bold; cursor: pointer;
   `;
   detonateBtn.addEventListener('click', () => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    window.dispatchEvent(new CustomEvent('game-detonate'));
   });
   btnContainer.appendChild(detonateBtn);
 
@@ -136,7 +136,7 @@ export function createWeaponPanel(container: HTMLElement): WeaponPanelState {
     cursor: pointer;
   `;
   resetBtn.addEventListener('click', () => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
+    window.dispatchEvent(new CustomEvent('game-reset'));
   });
   btnContainer.appendChild(resetBtn);
 

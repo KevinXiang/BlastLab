@@ -142,6 +142,29 @@ export function detonateGroup(group: number): THREE.Vector3[] {
   return positions;
 }
 
+export function clearRemoteBombs(): void {
+  for (const bomb of remoteBombs) {
+    bomb.mesh.removeFromParent();
+    bomb.mesh.geometry.dispose();
+    (bomb.mesh.material as THREE.Material).dispose();
+  }
+  remoteBombs.length = 0;
+}
+
+export function clearMines(): void {
+  for (const mine of mines) {
+    mine.mesh.removeFromParent();
+    mine.mesh.traverse((c) => {
+      if (c instanceof THREE.Mesh) { c.geometry.dispose(); (c.material as THREE.Material).dispose(); }
+    });
+  }
+  mines.length = 0;
+}
+
+export function clearPlacedExplosives(): void {
+  placedExplosives.length = 0;
+}
+
 // Mines: proximity detection
 interface MineData {
   position: CANNON.Vec3;
