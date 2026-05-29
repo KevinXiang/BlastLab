@@ -98,12 +98,8 @@ function handleClick(): void {
 
   if (intersection) {
     const pos = new CANNON.Vec3(intersection.x, 0, intersection.z);
-    if (uiState.selectedConstruct) {
-      placeConstruct(uiState.selectedConstruct, intersection.x, intersection.z);
-    } else {
-      placeExplosive(uiState.selectedExplosive, pos);
-      createExplosiveMesh(uiState.selectedExplosive, pos);
-    }
+    placeExplosive(uiState.selectedExplosive, pos);
+    createExplosiveMesh(uiState.selectedExplosive, pos);
   }
 
   input.mouseDown = false;
