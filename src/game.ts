@@ -8,6 +8,7 @@ import {
   spawnNukeEffect,
 } from './effects';
 import { EXPLOSIVE_DEFS, ExplosiveDef, REMOTE_RADIUS, REMOTE_FORCE, MINE_RADIUS, MINE_FORCE } from './constants';
+import { getScene } from './renderer';
 
 interface PlacedExplosiveData {
   position: CANNON.Vec3;
@@ -132,7 +133,9 @@ export function detonateGroup(group: number): THREE.Vector3[] {
     if (bomb.group === group) {
       applyExplosion({ position: bomb.position, radius: REMOTE_RADIUS, baseForce: REMOTE_FORCE });
       positions.push(new THREE.Vector3(bomb.position.x, 1, bomb.position.z));
-      bomb.mesh.removeFromParent?.();
+      bomb.mesh.removeFromParent();
+      bomb.mesh.geometry.dispose();
+      (bomb.mesh.material as THREE.Material).dispose();
       remoteBombs.splice(i, 1);
     }
   }

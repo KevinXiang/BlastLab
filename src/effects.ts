@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { getScene } from './renderer';
+import { PhysicsBody, getWorld } from './physics';
+import { physicsBodies } from './scene';
 
 interface Particle {
   mesh: THREE.Mesh;
@@ -190,25 +192,134 @@ export function spawnNukeEffect(position: THREE.Vector3): void {
 }
 
 // ============================================================
-// Incendiary: persistent fire particles for 3s
+// Incendiary: ignites nearby buildings/trees, 10s burn then ash
 // ============================================================
-export function spawnIncendiaryEffect(position: THREE.Vector3): void {
-  let burnElapsed = 0;
-  const burnDuration = 3;
+export function spawnIncendiaryEffect(
+  position: THREE.Vector3,
+  physicsBodies: PhysicsBody[],
+): void {
   const fireColors = [0xffdd00, 0xff8800, 0xff4400, 0xffaa00];
+  const incendiaryRadius = 5;
 
-  function animateBurn(dt: number): boolean {
-    burnElapsed += dt;
-    if (burnElapsed < burnDuration && Math.random() < 0.6) {
-      const pos = position.clone().add(
-        new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 0.5, (Math.random() - 0.5) * 3),
-      );
-      const color = fireColors[Math.floor(Math.random() * fireColors.length)];
-      addParticle(pos, new THREE.Vector3(0, 1 + Math.random() * 2, 0), color, 0.1, 0.8);
-    }
-    return burnElapsed < burnDuration;
+  // Initial fire particles at explosion point
+  for (let i = 0; i < 30; i++) {
+    const pos = position.clone().add(
+      new THREE.Vector3((Math.random() - 0.5) * 4, Math.random() * 2, (Math.random() - 0.5) * 4),
+    );
+    const color = fireColors[Math.floor(Math.random() * fireColors.length)];
+    addParticle(pos, new THREE.Vector3(0, 2 + Math.random() * 4, 0), color, 0.12, 0.6 + Math.random() * 1.2);
   }
-  activeAnimations.push(animateBurn);
+
+  // Find nearby buildings and trees to ignite
+  for (const pb of physicsBodies) {
+    if (!pb.isBuilding && !pb.isTree) continue;
+    const p = new THREE.Vector3(pb.body.position.x, pb.body.position.y, pb.body.position.z);
+    const dist = p.distanceTo(position);
+    if (dist > incendiaryRadius) continue;
+
+    igniteObject(pb, fireColors);
+  }
+}
+
+interface BurningObject {
+  pb: PhysicsBody;
+  elapsed: number;
+  originalMaterials: Array<{ obj: THREE.Mesh; mat: THREE.Material }>;
+  fireParticles: Array<{ mesh: THREE.Mesh; offset: THREE.Vector3 }>;
+}
+
+const burningObjects: BurningObject[] = [];
+
+function igniteObject(pb: PhysicsBody, fireColors: number[]): void {
+  const scene = getScene();
+
+  // Store original materials and replace with burning colors
+  const originalMaterials: Array<{ obj: THREE.Mesh; mat: THREE.Material }> = [];
+  const fireParticles: Array<{ mesh: THREE.Mesh; offset: THREE.Vector3 }> = [];
+
+  pb.mesh.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      originalMaterials.push({ obj: child, mat: child.material });
+      const burnMat = new THREE.MeshBasicMaterial({
+        color: fireColors[Math.floor(Math.random() * fireColors.length)],
+        transparent: true,
+        opacity: 0.85,
+      });
+      child.material = burnMat;
+
+      // Create fire particles for this mesh part
+      for (let i = 0; i < 3; i++) {
+        const pGeo = new THREE.SphereGeometry(0.08 + Math.random() * 0.12, 3, 2);
+        const pMat = new THREE.MeshBasicMaterial({
+          color: fireColors[Math.floor(Math.random() * fireColors.length)],
+        });
+        const pMesh = new THREE.Mesh(pGeo, pMat);
+        pMesh.position.copy(child.getWorldPosition(new THREE.Vector3()));
+        const offset = new THREE.Vector3(
+          (Math.random() - 0.5) * 0.8,
+          Math.random() * 0.6,
+          (Math.random() - 0.5) * 0.8,
+        );
+        pMesh.position.add(offset);
+        scene.add(pMesh);
+        fireParticles.push({ mesh: pMesh, offset });
+      }
+    }
+  });
+
+  pb.body.mass = 30; // Reduce mass so it can be affected by physics later
+
+  burningObjects.push({
+    pb,
+    elapsed: 0,
+    originalMaterials,
+    fireParticles,
+  });
+}
+
+function updateBurningObjects(dt: number, scene: THREE.Scene): void {
+  for (let i = burningObjects.length - 1; i >= 0; i--) {
+    const bo = burningObjects[i];
+    bo.elapsed += dt;
+    const t = bo.elapsed / 10;
+
+    // Update fire particles
+    for (const fp of bo.fireParticles) {
+      const worldPos = bo.pb.mesh.position.clone().add(fp.offset);
+      worldPos.y += Math.sin(bo.elapsed * 10 + fp.offset.x * 5) * 0.2;
+      fp.mesh.position.copy(worldPos);
+      fp.mesh.scale.setScalar(0.5 + Math.random() * 0.5);
+    }
+
+    // After 10s, turn to ash (shrink and remove)
+    if (bo.elapsed >= 10) {
+      // Remove fire particles
+      for (const fp of bo.fireParticles) {
+        scene.remove(fp.mesh);
+        fp.mesh.geometry.dispose();
+        (fp.mesh.material as THREE.Material).dispose();
+      }
+      // Remove object from scene
+      scene.remove(bo.pb.mesh);
+      bo.pb.mesh.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.geometry.dispose();
+          if (Array.isArray(child.material)) {
+            child.material.forEach(m => m.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      });
+      // Remove from physics world
+      getWorld().removeBody(bo.pb.body);
+      // Remove from physicsBodies
+      const idx = physicsBodies.indexOf(bo.pb);
+      if (idx !== -1) physicsBodies.splice(idx, 1);
+
+      burningObjects.splice(i, 1);
+    }
+  }
 }
 
 // ============================================================
@@ -349,6 +460,8 @@ export function spawnMushroomCloud(position: THREE.Vector3): void {
 // Shared update
 // ============================================================
 export function updateEffects(dt: number): void {
+  const scene = getScene();
+
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     p.life -= dt;
@@ -359,7 +472,6 @@ export function updateEffects(dt: number): void {
     p.mesh.scale.setScalar(Math.max(0, p.life / p.maxLife));
 
     if (p.life <= 0) {
-      const scene = getScene();
       scene.remove(p.mesh);
       p.mesh.geometry.dispose();
       (p.mesh.material as THREE.Material).dispose();
@@ -372,4 +484,6 @@ export function updateEffects(dt: number): void {
       activeAnimations.splice(i, 1);
     }
   }
+
+  updateBurningObjects(dt, scene);
 }

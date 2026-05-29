@@ -28,6 +28,7 @@ export interface PhysicsBody {
   body: CANNON.Body;
   mesh: THREE.Mesh | THREE.Group;
   isBuilding: boolean;
+  isTree?: boolean;
 }
 
 export function createBuildingBody(

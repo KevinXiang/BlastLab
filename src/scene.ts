@@ -313,7 +313,7 @@ export function createSingleTree(x: number, z: number): void {
   treeBody.linearDamping = 0.4;
   treeBody.angularDamping = 0.4;
   getWorld().addBody(treeBody);
-  physicsBodies.push({ body: treeBody, mesh: tree, isBuilding: false });
+  physicsBodies.push({ body: treeBody, mesh: tree, isBuilding: false, isTree: true });
 }
 
 export function createSandbag(x: number, z: number): void {

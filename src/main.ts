@@ -151,7 +151,7 @@ function placeItem(type: string, x: number, z: number): void {
       break;
     }
     // Special
-    case 'incendiary': spawnIncendiaryEffect(pos3); break;
+    case 'incendiary': spawnIncendiaryEffect(pos3, physicsBodies); break;
     case 'smoke': spawnSmokeEffect(pos3); break;
     case 'flash': spawnFlashEffect(pos3); break;
     // Constructs
