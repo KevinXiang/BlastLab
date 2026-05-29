@@ -10,9 +10,10 @@ import {
   spawnBlackHoleEffect,
   spawnEMPEffect,
 } from './effects';
-import { BLACKHOLE_RADIUS, BLACKHOLE_SUCK_DURATION, BLACKHOLE_EJECT_FORCE } from './constants';
+import { BLACKHOLE_SUCK_DURATION } from './constants';
 import { EXPLOSIVE_DEFS, ExplosiveDef, REMOTE_RADIUS, REMOTE_FORCE, MINE_RADIUS, MINE_FORCE } from './constants';
 import { getScene } from './renderer';
+import { physicsBodies } from './scene';
 
 export interface ScoreBreakdown {
   destroyScore: number;
@@ -127,39 +128,65 @@ function startBlackHolePhysics(position: CANNON.Vec3, world: CANNON.World): void
   activeBlackHoles.push({ position: position.clone(), elapsed: 0 });
 }
 
-export function updateBlackHolePhysics(dt: number): void {
+export function updateBlackHolePhysics(dt: number, scene: THREE.Scene): void {
   const world = getWorld();
   for (let i = activeBlackHoles.length - 1; i >= 0; i--) {
     const bh = activeBlackHoles[i];
     bh.elapsed += dt;
 
     if (bh.elapsed < BLACKHOLE_SUCK_DURATION) {
-      // Suck phase: pull all bodies toward center
-      for (const body of world.bodies) {
+      // Suck phase: pull ALL bodies toward center — no distance limit
+      for (let j = world.bodies.length - 1; j >= 0; j--) {
+        const body = world.bodies[j];
         if (body.mass === 0) continue;
+
         const dx = bh.position.x - body.position.x;
         const dy = bh.position.y - body.position.y;
         const dz = bh.position.z - body.position.z;
         const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (dist < 0.3 || dist > BLACKHOLE_RADIUS) continue;
-        const strength = 8000 / (1 + dist * dist);
-        const dir = new CANNON.Vec3(dx / dist, dy / dist, dz / dist);
+
+        // Pull everything
+        const strength = 12000 / (1 + dist * dist * 0.3);
+        const dir = new CANNON.Vec3(dx / Math.max(dist, 0.01), dy / Math.max(dist, 0.01), dz / Math.max(dist, 0.01));
         body.applyImpulse(dir.scale(strength * dt), body.position);
+
+        // Destroy objects that reached the core
+        if (dist < 1.5) {
+          let wasBuilding = false;
+          for (const pb of physicsBodies) {
+            if (pb.body === body) {
+              wasBuilding = pb.isBuilding || false;
+              scene.remove(pb.mesh);
+              pb.mesh.traverse((c) => {
+                if (c instanceof THREE.Mesh) {
+                  c.geometry.dispose();
+                  const mat = c.material as THREE.Material;
+                  if (Array.isArray(mat)) mat.forEach(m => m.dispose());
+                  else mat.dispose();
+                }
+              });
+              const idx = physicsBodies.indexOf(pb);
+              if (idx !== -1) physicsBodies.splice(idx, 1);
+              break;
+            }
+          }
+          world.removeBody(body);
+          scoreState.totalScore += wasBuilding ? 500 : 200;
+        }
       }
-      // Add score for sucking
+      // Passive scoring
       scoreState.totalScore += Math.floor(dt * 10);
     } else if (bh.elapsed < BLACKHOLE_SUCK_DURATION + 0.5) {
-      // Charge phase: brief pause, flash
-      // (visual handled by effects.ts)
+      // Charge phase
     } else {
-      // Eject phase: explode outward
+      // Eject: push ALL bodies outward — no distance limit
       for (const body of world.bodies) {
         if (body.mass === 0) continue;
         const dx = body.position.x - bh.position.x;
         const dy = body.position.y - bh.position.y;
         const dz = body.position.z - bh.position.z;
         const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (dist < 0.3 || dist > BLACKHOLE_RADIUS * 1.5) continue;
+        if (dist < 0.3) continue;
         const strength = 10000 / (1 + dist * 0.3);
         const dir = new CANNON.Vec3(dx / dist, dy / dist + 0.3, dz / dist);
         dir.normalize();

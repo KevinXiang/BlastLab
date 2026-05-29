@@ -379,7 +379,7 @@ function animate() {
   }
 
   // Black hole physics
-  updateBlackHolePhysics(dt);
+  updateBlackHolePhysics(dt, scene);
 
   // Panel toggle
   if (input.togglePanel) {
