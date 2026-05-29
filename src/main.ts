@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { initRenderer, getCamera } from './renderer';
-import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives, createSingleBuilding, createSingleVehicle, createSingleTree } from './scene';
+import { initRenderer, getCamera, getScene } from './renderer';
+import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives, createSingleBuilding, createSingleVehicle, createSingleTree, createSandbag, createBarricade, createMineModel, createRemoteBombModel } from './scene';
 import { initPhysics, DebrisPiece } from './physics';
-import { placeExplosive, detonateAll } from './game';
-import { updateEffects } from './effects';
+import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine } from './game';
+import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect } from './effects';
 import { createUI, updateUI } from './ui';
 import { createInputState, setupInput } from './input';
+import { createWeaponPanel, WeaponPanelState } from './weaponpanel';
 import {
   CAMERA_ZOOM, CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM,
   CAMERA_ORBIT_DISTANCE, CAMERA_ELEVATION,
@@ -25,6 +26,7 @@ const input = createInputState();
 setupInput(input, renderer.domElement);
 
 const uiState = createUI(container);
+const panelState = createWeaponPanel(container);
 
 let cameraAngle = Math.PI / 4;
 let zoomLevel = CAMERA_ZOOM;
@@ -97,9 +99,8 @@ function handleClick(): void {
   raycaster.ray.intersectPlane(groundPlane, intersection);
 
   if (intersection) {
-    const pos = new CANNON.Vec3(intersection.x, 0, intersection.z);
-    placeExplosive(uiState.selectedExplosive, pos);
-    createExplosiveMesh(uiState.selectedExplosive, pos);
+    const type = panelState.selectedType || uiState.selectedExplosive;
+    placeItem(type, intersection.x, intersection.z);
   }
 
   input.mouseDown = false;
@@ -112,29 +113,53 @@ container.addEventListener('dragover', (e) => {
 
 container.addEventListener('drop', (e) => {
   e.preventDefault();
-  const data = e.dataTransfer!.getData('text/plain');
-  if (!data) return;
-
+  const type = e.dataTransfer!.getData('text/plain');
+  if (!type) return;
   const intersection = getGroundIntersection(e.clientX, e.clientY);
   if (!intersection) return;
-
-  if (data.startsWith('construct:')) {
-    placeConstruct(data.slice('construct:'.length), intersection.x, intersection.z);
-  } else {
-    const pos = new CANNON.Vec3(intersection.x, 0, intersection.z);
-    placeExplosive(data, pos);
-    createExplosiveMesh(data, pos);
-  }
+  placeItem(type, intersection.x, intersection.z);
 });
 
 const debrisList: DebrisPiece[] = [];
 let lastTime = performance.now();
 
-function placeConstruct(type: string, x: number, z: number): void {
+let placedCount = 0;
+
+function placeItem(type: string, x: number, z: number): void {
+  const pos = new CANNON.Vec3(x, 0, z);
+  const pos3 = new THREE.Vector3(x, 1, z);
+
   switch (type) {
+    // Explosives (existing)
+    case 'tnt':
+    case 'c4':
+    case 'nitroglycerin':
+    case 'nuke':
+      placeExplosive(type, pos);
+      createExplosiveMesh(type, pos);
+      break;
+    // New explosives
+    case 'remote_bomb': {
+      const mesh = createRemoteBombModel(x, z);
+      placeRemoteBomb(pos, placedCount % 3, mesh);
+      placedCount++;
+      break;
+    }
+    case 'mine': {
+      const mesh = createMineModel(x, z);
+      placeMine(pos, mesh);
+      break;
+    }
+    // Special
+    case 'incendiary': spawnIncendiaryEffect(pos3); break;
+    case 'smoke': spawnSmokeEffect(pos3); break;
+    case 'flash': spawnFlashEffect(pos3); break;
+    // Constructs
     case 'building': createSingleBuilding(x, z); break;
     case 'vehicle': createSingleVehicle(x, z); break;
     case 'tree': createSingleTree(x, z); break;
+    case 'sandbag': createSandbag(x, z); break;
+    case 'barricade': createBarricade(x, z); break;
   }
 }
 
@@ -148,6 +173,37 @@ function animate() {
   updateCamera(dt);
   handleClick();
   updateUI(container, uiState);
+
+  // Panel toggle
+  if (input.togglePanel) {
+    const tab = document.getElementById('weapon-tab');
+    if (tab) tab.click();
+    input.togglePanel = false;
+  }
+
+  // Remote detonation groups
+  if (input.detonateGroup1) {
+    for (const p of detonateGroup(0)) spawnTntEffect(p);
+    input.detonateGroup1 = false;
+  }
+  if (input.detonateGroup2) {
+    for (const p of detonateGroup(1)) spawnTntEffect(p);
+    input.detonateGroup2 = false;
+  }
+  if (input.detonateGroup3) {
+    for (const p of detonateGroup(2)) spawnTntEffect(p);
+    input.detonateGroup3 = false;
+  }
+
+  // Mine detection
+  const triggered = updateMines(dt);
+  for (const mine of triggered) {
+    spawnTntEffect(new THREE.Vector3(mine.position.x, 1, mine.position.z));
+    getScene().remove(mine.mesh);
+    mine.mesh.traverse((c) => {
+      if (c instanceof THREE.Mesh) { c.geometry.dispose(); (c.material as THREE.Material).dispose(); }
+    });
+  }
 
   if (input.detonate) {
     detonateAll(physicsBodies, debrisList, scene);
