@@ -190,6 +190,99 @@ export function spawnNukeEffect(position: THREE.Vector3): void {
 }
 
 // ============================================================
+// Incendiary: persistent fire particles for 3s
+// ============================================================
+export function spawnIncendiaryEffect(position: THREE.Vector3): void {
+  let burnElapsed = 0;
+  const burnDuration = 3;
+  const fireColors = [0xffdd00, 0xff8800, 0xff4400, 0xffaa00];
+
+  function animateBurn(dt: number): boolean {
+    burnElapsed += dt;
+    if (burnElapsed < burnDuration && Math.random() < 0.6) {
+      const pos = position.clone().add(
+        new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 0.5, (Math.random() - 0.5) * 3),
+      );
+      const color = fireColors[Math.floor(Math.random() * fireColors.length)];
+      addParticle(pos, new THREE.Vector3(0, 1 + Math.random() * 2, 0), color, 0.1, 0.8);
+    }
+    return burnElapsed < burnDuration;
+  }
+  activeAnimations.push(animateBurn);
+}
+
+// ============================================================
+// Smoke: expanding grey sphere + smoke particles
+// ============================================================
+export function spawnSmokeEffect(position: THREE.Vector3): void {
+  const scene = getScene();
+  const sphereGeo = new THREE.SphereGeometry(0.5, 8, 8);
+  const sphereMat = new THREE.MeshBasicMaterial({ color: 0x666666, transparent: true, opacity: 0.6 });
+  const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+  sphere.position.copy(position);
+  sphere.position.y += 1;
+  scene.add(sphere);
+
+  let elapsed = 0;
+  const duration = 3;
+
+  function animateSmoke(dt: number): boolean {
+    elapsed += dt;
+    const t = elapsed / duration;
+    sphere.scale.setScalar(1 + t * 10);
+    sphereMat.opacity = Math.max(0, 0.6 * (1 - t));
+    sphere.position.y += dt * 1.5;
+
+    if (Math.random() < 0.5) {
+      addParticle(
+        sphere.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 4, 1, (Math.random() - 0.5) * 4)),
+        new THREE.Vector3(0, 1 + Math.random(), 0),
+        0x888888, 0.2, 1.5,
+      );
+    }
+
+    if (elapsed >= duration) {
+      scene.remove(sphere);
+      sphereGeo.dispose();
+      sphereMat.dispose();
+      return false;
+    }
+    return true;
+  }
+  activeAnimations.push(animateSmoke);
+}
+
+// ============================================================
+// Flashbang: white hemisphere flash 0.5s
+// ============================================================
+export function spawnFlashEffect(position: THREE.Vector3): void {
+  const scene = getScene();
+  const geo = new THREE.SphereGeometry(1, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 });
+  const flash = new THREE.Mesh(geo, mat);
+  flash.position.copy(position);
+  flash.position.y += 1;
+  scene.add(flash);
+
+  let elapsed = 0;
+  const duration = 0.5;
+
+  function animateFlash(dt: number): boolean {
+    elapsed += dt;
+    flash.scale.setScalar(1 + elapsed * 15);
+    mat.opacity = Math.max(0, 1 - elapsed / duration);
+    if (elapsed >= duration) {
+      scene.remove(flash);
+      geo.dispose();
+      mat.dispose();
+      return false;
+    }
+    return true;
+  }
+  activeAnimations.push(animateFlash);
+}
+
+// ============================================================
 // Mushroom cloud (internal nuke component)
 // ============================================================
 export function spawnMushroomCloud(position: THREE.Vector3): void {
