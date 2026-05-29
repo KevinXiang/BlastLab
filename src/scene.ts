@@ -325,7 +325,7 @@ export function createSandbag(x: number, z: number): void {
   mesh.castShadow = true;
   scene.add(mesh);
 
-  const body = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(0.4, 0.2, 0.15)) });
+  const body = new CANNON.Body({ mass: 20, shape: new CANNON.Box(new CANNON.Vec3(0.4, 0.2, 0.15)) });
   body.position.set(x, 0.2, z);
   getWorld().addBody(body);
   physicsBodies.push({ body, mesh, isBuilding: false });
@@ -354,7 +354,7 @@ export function createBarricade(x: number, z: number): void {
   scene.add(group);
 
   const body = new CANNON.Body({
-    mass: 0,
+    mass: 15,
     shape: new CANNON.Cylinder(0.3, 0.3, 0.8, 8),
   });
   body.position.set(x, 0.4, z);
