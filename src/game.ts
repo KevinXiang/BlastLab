@@ -59,56 +59,6 @@ export function detonateAll(
   placedExplosives = [];
 }
 
-export type GameMode = 'sandbox' | 'level';
-
-export interface LevelConfig {
-  name: string;
-  explosives: Record<string, number>;
-  objective: string;
-}
-
-const LEVELS: LevelConfig[] = [
-  { name: '第一关', explosives: { tnt: 3, c4: 1 }, objective: '摧毁红色建筑' },
-  { name: '第二关', explosives: { tnt: 2, c4: 2, nitroglycerin: 2 }, objective: '清空区域' },
-];
-
-let currentMode: GameMode = 'sandbox';
-let currentLevel = 0;
-let remainingExplosives: Record<string, number> = {};
-
-export function setMode(mode: GameMode): void {
-  currentMode = mode;
-  if (mode === 'sandbox') {
-    remainingExplosives = { tnt: Infinity, c4: Infinity, nitroglycerin: Infinity, nuke: Infinity };
-  } else {
-    currentLevel = 0;
-    loadLevel(currentLevel);
-  }
-}
-
-function loadLevel(index: number): void {
-  const level = LEVELS[index];
-  remainingExplosives = { ...level.explosives };
-}
-
-export function canPlace(type: string): boolean {
-  if (currentMode === 'sandbox') return true;
-  return (remainingExplosives[type] ?? 0) > 0;
-}
-
-export function consumeExplosive(type: string): void {
-  if (currentMode === 'sandbox') return;
-  if (remainingExplosives[type] && remainingExplosives[type] > 0) {
-    remainingExplosives[type]--;
-  }
-}
-
-export function getMode(): GameMode { return currentMode; }
-export function getRemaining(): Record<string, number> { return { ...remainingExplosives }; }
-export function getCurrentLevel(): LevelConfig | null {
-  return currentMode === 'level' ? LEVELS[currentLevel] : null;
-}
-
 // Remote bombs: grouped detonation
 interface RemoteBomb {
   position: CANNON.Vec3;
