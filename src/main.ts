@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { initRenderer, getCamera, getScene } from './renderer';
-import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives, createSingleBuilding, createSingleVehicle, createSingleTree, createSandbag, createBarricade, createMineModel, createRemoteBombModel } from './scene';
+import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives, createSingleBuilding, createSingleVehicle, createSingleTree, createSandbag, createBarricade, createMineModel, createRemoteBombModel, clearScene, buildFromLayout, createVehicles, createDecorations } from './scene';
 import { initPhysics, DebrisPiece } from './physics';
 import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives } from './game';
 import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect } from './effects';
-import { createUI, updateUI } from './ui';
+import { createUI, updateUI, showResultPopup } from './ui';
 import { createInputState, setupInput } from './input';
 import { createWeaponPanel, WeaponPanelState } from './weaponpanel';
 import {
@@ -14,6 +14,8 @@ import {
   CAMERA_ROTATE_SPEED, CAMERA_ZOOM_SPEED,
   CAMERA_DRAG_SENSITIVITY, CAMERA_SCROLL_SENSITIVITY,
 } from './constants';
+import { setDestroyCallback } from './destruction';
+import { initLevelSystem, startLevel, updateLevelTimer, checkObjectives, checkFailCondition, getPhase, getLevelState, recordSkip, returnToMenu, canPlace, consumeWeapon, isWeaponRestricted, LEVELS, getProgress } from './level';
 
 const container = document.getElementById('app')!;
 const { camera, renderer, scene } = initRenderer(container);
@@ -21,6 +23,8 @@ const { camera, renderer, scene } = initRenderer(container);
 const world = initPhysics();
 
 createScene();
+
+initLevelSystem();
 
 const input = createInputState();
 setupInput(input, renderer.domElement);
@@ -138,17 +142,46 @@ window.addEventListener('game-reset', () => {
   debrisList.length = 0;
 });
 
+setDestroyCallback((type, id) => {
+  const ls = getLevelState();
+  if (ls && getPhase() === 'playing') {
+    ls.destroyedObjectIds.add(id);
+  }
+});
+
+window.addEventListener('level-start', ((e: CustomEvent) => {
+  const id = e.detail.id;
+  clearScene();
+  for (const d of debrisList) {
+    world.removeBody(d.body);
+    scene.remove(d.mesh);
+    d.mesh.geometry.dispose();
+    (d.mesh.material as THREE.Material).dispose();
+  }
+  debrisList.length = 0;
+  resultPopupShown = false;
+
+  const config = startLevel(id);
+  if (config) {
+    buildFromLayout(config.buildings);
+    createVehicles();
+    createDecorations();
+  }
+}) as EventListener);
+
 const debrisList: DebrisPiece[] = [];
 let lastTime = performance.now();
 
 let placedCount = 0;
 
 function placeItem(type: string, x: number, z: number): void {
+  if (isWeaponRestricted(type)) return;
+  if (!canPlace(type)) return;
+
   const pos = new CANNON.Vec3(x, 0, z);
   const pos3 = new THREE.Vector3(x, 1, z);
 
   switch (type) {
-    // Explosives (existing)
     case 'tnt':
     case 'c4':
     case 'nitroglycerin':
@@ -156,7 +189,6 @@ function placeItem(type: string, x: number, z: number): void {
       placeExplosive(type, pos);
       createExplosiveMesh(type, pos);
       break;
-    // New explosives
     case 'remote_bomb': {
       const mesh = createRemoteBombModel(x, z);
       placeRemoteBomb(pos, placedCount % 3, mesh);
@@ -168,18 +200,20 @@ function placeItem(type: string, x: number, z: number): void {
       placeMine(pos, mesh);
       break;
     }
-    // Special
     case 'incendiary': spawnIncendiaryEffect(pos3, physicsBodies); break;
     case 'smoke': spawnSmokeEffect(pos3); break;
     case 'flash': spawnFlashEffect(pos3); break;
-    // Constructs
     case 'building': createSingleBuilding(x, z); break;
     case 'vehicle': createSingleVehicle(x, z); break;
     case 'tree': createSingleTree(x, z); break;
     case 'sandbag': createSandbag(x, z); break;
     case 'barricade': createBarricade(x, z); break;
   }
+
+  consumeWeapon(type);
 }
+
+let resultPopupShown = false;
 
 function animate() {
   requestAnimationFrame(animate);
@@ -191,6 +225,80 @@ function animate() {
   updateCamera(dt);
   handleClick();
   updateUI(container, uiState);
+
+  // Level mode lifecycle
+  const phase = getPhase();
+  if (phase === 'playing') {
+    updateLevelTimer(dt);
+    checkObjectives();
+    checkFailCondition();
+  }
+
+  // Result popup (only once per state transition)
+  const newPhase = getPhase();
+  if ((newPhase === 'complete' || newPhase === 'failed') && !resultPopupShown) {
+    resultPopupShown = true;
+    const ls = getLevelState();
+    if (ls) {
+      const isComplete = newPhase === 'complete';
+      const progress = getProgress();
+      const record = progress.records[ls.config.id];
+      const canSkip = (record?.failCount ?? 0) >= 5;
+
+      showResultPopup(
+        container,
+        isComplete,
+        isComplete && ls.config.id < LEVELS.length ? () => {
+          clearScene();
+          for (const d of debrisList) {
+            world.removeBody(d.body);
+            scene.remove(d.mesh);
+            d.mesh.geometry.dispose();
+            (d.mesh.material as THREE.Material).dispose();
+          }
+          debrisList.length = 0;
+          resultPopupShown = false;
+          const next = startLevel(ls.config.id + 1);
+          if (next) {
+            buildFromLayout(next.buildings);
+            createVehicles();
+            createDecorations();
+          }
+        } : null,
+        () => {
+          clearScene();
+          for (const d of debrisList) {
+            world.removeBody(d.body);
+            scene.remove(d.mesh);
+            d.mesh.geometry.dispose();
+            (d.mesh.material as THREE.Material).dispose();
+          }
+          debrisList.length = 0;
+          resultPopupShown = false;
+          const config = startLevel(ls.config.id);
+          if (config) {
+            buildFromLayout(config.buildings);
+            createVehicles();
+            createDecorations();
+          }
+        },
+        () => {
+          returnToMenu();
+          clearScene();
+          for (const d of debrisList) {
+            world.removeBody(d.body);
+            scene.remove(d.mesh);
+            d.mesh.geometry.dispose();
+            (d.mesh.material as THREE.Material).dispose();
+          }
+          debrisList.length = 0;
+          resultPopupShown = false;
+          createScene();
+        },
+        canSkip ? () => { recordSkip(); returnToMenu(); } : null,
+      );
+    }
+  }
 
   // Panel toggle
   if (input.togglePanel) {
