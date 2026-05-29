@@ -5,6 +5,9 @@ export interface WeaponDef {
   category: 'explosive' | 'special' | 'construct';
 }
 
+import { LEVELS, startLevel, returnToMenu, getPhase, getProgress, recordSkip, initLevelSystem, getLevelState } from './level';
+import { resetProgress } from './persistence';
+
 const WEAPONS: WeaponDef[] = [
   // 爆炸类
   { type: 'tnt', label: 'TNT桶', icon: '🧨', category: 'explosive' },
@@ -148,17 +151,93 @@ export function createWeaponPanel(container: HTMLElement): WeaponPanelState {
     font-size: 13px;
   `;
   modeBtn.addEventListener('click', () => {
-    if (modeBtn.textContent === '沙盒') {
+    const phase = getPhase();
+    if (phase === 'playing') {
+      returnToMenu();
       modeBtn.textContent = '关卡';
       modeBtn.style.background = '#ff9800';
+      levelList.style.display = 'none';
     } else {
-      modeBtn.textContent = '沙盒';
-      modeBtn.style.background = '#4caf50';
+      levelList.style.display = levelList.style.display === 'none' ? '' : 'none';
+      if (levelList.style.display !== 'none') refreshLevelList();
+      modeBtn.textContent = levelList.style.display !== 'none' ? '隐藏' : '关卡';
     }
   });
   btnContainer.appendChild(modeBtn);
 
+  const resetProgressBtn = document.createElement('button');
+  resetProgressBtn.textContent = '重置进度';
+  resetProgressBtn.style.cssText = `
+    width: 100%; padding: 6px; background: #c62828; color: #fff;
+    border: none; border-radius: 4px; font-size: 11px; cursor: pointer;
+    margin-top: 8px;
+  `;
+  resetProgressBtn.addEventListener('click', () => {
+    if (confirm('确定要重置所有关卡进度吗？此操作不可撤销。')) {
+      resetProgress();
+      initLevelSystem();
+      refreshLevelList();
+      returnToMenu();
+    }
+  });
+  btnContainer.appendChild(resetProgressBtn);
+
   panel.appendChild(btnContainer);
+
+  // Level list section
+  const levelList = document.createElement('div');
+  levelList.id = 'level-list';
+  levelList.style.cssText = `
+    margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 12px;
+    display: none;
+  `;
+  const levelTitle = document.createElement('div');
+  levelTitle.textContent = '关卡列表';
+  levelTitle.style.cssText = 'font-size: 11px; color: #aaa; margin-bottom: 8px;';
+  levelList.appendChild(levelTitle);
+
+  const levelGrid = document.createElement('div');
+  levelGrid.style.cssText = 'display: flex; gap: 6px; flex-wrap: wrap;';
+  levelList.appendChild(levelGrid);
+  panel.appendChild(levelList);
+
+  function refreshLevelList(): void {
+    const progress = getProgress();
+    levelGrid.innerHTML = '';
+
+    for (const level of LEVELS) {
+      const record = progress.records[level.id];
+      const unlocked = level.id <= progress.unlockedLevel;
+      const card = document.createElement('div');
+      card.style.cssText = `
+        padding: 6px 10px; border-radius: 6px; font-size: 11px;
+        cursor: ${unlocked ? 'pointer' : 'default'};
+        background: ${unlocked ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)'};
+        opacity: ${unlocked ? '1' : '0.4'}; text-align: center; user-select: none;
+      `;
+
+      if (record?.completed) {
+        card.textContent = `${level.id} ${'⭐'.repeat(record.bestStars)}`;
+        card.style.background = 'rgba(76,175,80,0.3)';
+      } else if (record?.skipped) {
+        card.textContent = `${level.id} ⏭`;
+        card.style.background = 'rgba(255,152,0,0.3)';
+      } else if (unlocked) {
+        card.textContent = `${level.id}`;
+      } else {
+        card.textContent = `${level.id} 🔒`;
+      }
+
+      if (unlocked) {
+        card.addEventListener('click', () => {
+          window.dispatchEvent(new CustomEvent('level-start', { detail: { id: level.id } }));
+        });
+      }
+      levelGrid.appendChild(card);
+    }
+  }
+
+  (window as any).__refreshLevelList = refreshLevelList;
 
   container.appendChild(panel);
 
