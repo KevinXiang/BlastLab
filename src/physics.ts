@@ -1,6 +1,7 @@
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 import { GROUND_Y } from './constants';
+import { notifyDestroy } from './destruction';
 
 let world: CANNON.World;
 
@@ -29,6 +30,7 @@ export interface PhysicsBody {
   mesh: THREE.Mesh | THREE.Group;
   isBuilding: boolean;
   isTree?: boolean;
+  objectId?: number;
 }
 
 export function createBuildingBody(
@@ -92,6 +94,11 @@ export function fragmentBuilding(
   debrisList: DebrisPiece[],
   scene: THREE.Scene,
 ): void {
+  const pb = physicsBodies.find(p => p.body === body);
+  if (pb?.objectId !== undefined) {
+    notifyDestroy('building', pb.objectId);
+  }
+
   const pos = body.position.clone();
   const size = new CANNON.Vec3(0.4, 0.4, 0.4);
 

@@ -10,6 +10,7 @@ import {
 } from './constants';
 import { createBuildingBody, PhysicsBody, getWorld } from './physics';
 import { getScene } from './renderer';
+import { BuildingDef } from './level';
 import * as CANNON from 'cannon-es';
 
 interface Building {
@@ -17,10 +18,17 @@ interface Building {
   width: number;
   depth: number;
   height: number;
+  id: number;
 }
 
 export const buildings: Building[] = [];
 export const physicsBodies: PhysicsBody[] = [];
+
+let nextId = 1;
+
+export function resetIdCounter(): void {
+  nextId = 1;
+}
 
 function rand(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -53,9 +61,9 @@ export function createBuildings(): void {
     scene.add(mesh);
 
     const body = createBuildingBody(w, h, d, pos.x, pos.z);
-    physicsBodies.push({ body, mesh, isBuilding: true });
-
-    buildings.push({ mesh, width: w, depth: d, height: h });
+    const id = nextId++;
+    physicsBodies.push({ body, mesh, isBuilding: true, objectId: id });
+    buildings.push({ mesh, width: w, depth: d, height: h, id });
   }
 }
 
@@ -228,8 +236,9 @@ export function createSingleBuilding(x: number, z: number): void {
   scene.add(mesh);
 
   const body = createBuildingBody(w, h, d, x, z);
-  physicsBodies.push({ body, mesh, isBuilding: true });
-  buildings.push({ mesh, width: w, depth: d, height: h });
+  const id = nextId++;
+  physicsBodies.push({ body, mesh, isBuilding: true, objectId: id });
+  buildings.push({ mesh, width: w, depth: d, height: h, id });
 }
 
 export function createSingleVehicle(x: number, z: number): void {
@@ -280,7 +289,8 @@ export function createSingleVehicle(x: number, z: number): void {
   vehicleBody.linearDamping = 0.3;
   vehicleBody.angularDamping = 0.3;
   getWorld().addBody(vehicleBody);
-  physicsBodies.push({ body: vehicleBody, mesh: group, isBuilding: false });
+  const vid = nextId++;
+  physicsBodies.push({ body: vehicleBody, mesh: group, isBuilding: false, objectId: vid });
   vehicles.push({ body: group, x, z });
 }
 
@@ -313,7 +323,8 @@ export function createSingleTree(x: number, z: number): void {
   treeBody.linearDamping = 0.4;
   treeBody.angularDamping = 0.4;
   getWorld().addBody(treeBody);
-  physicsBodies.push({ body: treeBody, mesh: tree, isBuilding: false, isTree: true });
+  const tid = nextId++;
+  physicsBodies.push({ body: treeBody, mesh: tree, isBuilding: false, isTree: true, objectId: tid });
 }
 
 export function createSandbag(x: number, z: number): void {
@@ -564,4 +575,51 @@ export function removeAllExplosives(): void {
     disposeMesh(exp.mesh);
   }
   placedExplosiveMeshes.length = 0;
+}
+
+export function clearScene(): void {
+  const scene = getScene();
+  const world = getWorld();
+
+  for (const b of buildings) {
+    scene.remove(b.mesh);
+    b.mesh.geometry.dispose();
+    (b.mesh.material as THREE.Material).dispose();
+  }
+  buildings.length = 0;
+
+  for (const v of vehicles) {
+    scene.remove(v.body);
+    v.body.traverse((c) => {
+      if (c instanceof THREE.Mesh) { c.geometry.dispose(); (c.material as THREE.Material).dispose(); }
+    });
+  }
+  vehicles.length = 0;
+
+  for (const pb of physicsBodies) {
+    world.removeBody(pb.body);
+  }
+  physicsBodies.length = 0;
+
+  removeAllExplosives();
+  resetIdCounter();
+}
+
+export function buildFromLayout(layout: BuildingDef[]): void {
+  const scene = getScene();
+
+  for (const def of layout) {
+    const geo = new THREE.BoxGeometry(def.w, def.h, def.d);
+    const mat = new THREE.MeshToonMaterial({ color: def.color });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.position.set(def.x, def.h / 2, def.z);
+    scene.add(mesh);
+
+    const body = createBuildingBody(def.w, def.h, def.d, def.x, def.z);
+    const id = nextId++;
+    physicsBodies.push({ body, mesh, isBuilding: true, objectId: id });
+    buildings.push({ mesh, width: def.w, depth: def.d, height: def.h, id });
+  }
 }
