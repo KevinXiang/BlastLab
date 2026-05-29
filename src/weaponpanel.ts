@@ -168,6 +168,8 @@ export function createWeaponPanel(container: HTMLElement): WeaponPanelState {
 
   panel.appendChild(btnContainer);
 
+  container.appendChild(panel);
+
   tab.addEventListener('click', () => togglePanel(panel, tab, state));
   return state;
 }
