@@ -9,6 +9,7 @@ let scene: THREE.Scene;
 let renderTarget: THREE.WebGLRenderTarget;
 let distortionQuad: THREE.Mesh;
 let distortionScene: THREE.Scene;
+let distortionCamera: THREE.OrthographicCamera;
 let distortionUniforms: {
   tDiffuse: { value: THREE.Texture | null };
   uCenter: { value: THREE.Vector2 };
@@ -110,10 +111,13 @@ export function initRenderer(container: HTMLElement) {
         gl_FragColor = texture2D(tDiffuse, uv);
       }
     `,
+    depthTest: false,
+    depthWrite: false,
   });
 
   const quadGeo = new THREE.PlaneGeometry(2, 2);
   distortionQuad = new THREE.Mesh(quadGeo, distortionShader);
+  distortionCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   distortionScene = new THREE.Scene();
   distortionScene.add(distortionQuad);
 
@@ -154,8 +158,12 @@ export function setBlackHoleDistortion(worldPos: THREE.Vector3 | null, radius: n
 export function renderWithDistortion(): void {
   // Render 3D scene to offscreen target
   renderer.setRenderTarget(renderTarget);
+  renderer.clear();
   renderer.render(scene, camera);
+
+  // Back to default framebuffer
   renderer.setRenderTarget(null);
+  renderer.clear();
 
   // Smooth intensity transition
   const targetIntensity = lastBHWorldPos ? 1 : 0;
@@ -163,6 +171,6 @@ export function renderWithDistortion(): void {
   distortionUniforms.uRadius.value = lastBHRadius > 0 ? 0.12 : 0;
   distortionUniforms.tDiffuse.value = renderTarget.texture;
 
-  // Render distortion quad to screen
-  renderer.render(distortionScene, camera);
+  // Render distortion quad to screen with dedicated [-1,1] camera
+  renderer.render(distortionScene, distortionCamera);
 }
