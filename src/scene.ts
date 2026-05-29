@@ -316,6 +316,85 @@ export function createSingleTree(x: number, z: number): void {
   physicsBodies.push({ body: treeBody, mesh: tree, isBuilding: false });
 }
 
+export function createSandbag(x: number, z: number): void {
+  const scene = getScene();
+  const geo = new THREE.BoxGeometry(0.8, 0.4, 0.3);
+  const mat = new THREE.MeshToonMaterial({ color: 0xc2b280 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, 0.2, z);
+  mesh.castShadow = true;
+  scene.add(mesh);
+
+  const body = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(0.4, 0.2, 0.15)) });
+  body.position.set(x, 0.2, z);
+  getWorld().addBody(body);
+  physicsBodies.push({ body, mesh, isBuilding: false });
+}
+
+export function createBarricade(x: number, z: number): void {
+  const scene = getScene();
+  const group = new THREE.Group();
+  const coneGeo = new THREE.ConeGeometry(0.3, 0.8, 8);
+  const coneMat = new THREE.MeshToonMaterial({ color: 0xff6600 });
+  const cone = new THREE.Mesh(coneGeo, coneMat);
+  cone.position.y = 0.4;
+  cone.castShadow = true;
+  group.add(cone);
+
+  const stripeGeo = new THREE.TorusGeometry(0.25, 0.04, 4, 8);
+  const stripeMat = new THREE.MeshToonMaterial({ color: 0xffffff });
+  const stripe1 = new THREE.Mesh(stripeGeo, stripeMat);
+  stripe1.position.y = 0.35;
+  group.add(stripe1);
+  const stripe2 = new THREE.Mesh(stripeGeo, stripeMat);
+  stripe2.position.y = 0.5;
+  group.add(stripe2);
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+
+  const body = new CANNON.Body({
+    mass: 0,
+    shape: new CANNON.Cylinder(0.3, 0.3, 0.8, 8),
+  });
+  body.position.set(x, 0.4, z);
+  getWorld().addBody(body);
+  physicsBodies.push({ body, mesh: group, isBuilding: false });
+}
+
+export function createMineModel(x: number, z: number): THREE.Group {
+  const scene = getScene();
+  const group = new THREE.Group();
+
+  const geo = new THREE.CylinderGeometry(0.25, 0.3, 0.1, 8);
+  const mat = new THREE.MeshToonMaterial({ color: 0x444444 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.y = 0.05;
+  mesh.castShadow = true;
+  group.add(mesh);
+
+  const pinGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.12, 6);
+  const pinMat = new THREE.MeshToonMaterial({ color: 0x888888 });
+  const pin = new THREE.Mesh(pinGeo, pinMat);
+  pin.position.y = 0.14;
+  group.add(pin);
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+  return group;
+}
+
+export function createRemoteBombModel(x: number, z: number): THREE.Mesh {
+  const scene = getScene();
+  const geo = new THREE.BoxGeometry(0.4, 0.2, 0.3);
+  const mat = new THREE.MeshToonMaterial({ color: 0x228833 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, 0.1, z);
+  mesh.castShadow = true;
+  scene.add(mesh);
+  return mesh;
+}
+
 export interface PlacedExplosive {
   mesh: THREE.Mesh | THREE.Group;
   position: CANNON.Vec3;
