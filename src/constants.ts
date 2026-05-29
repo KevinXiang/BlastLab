@@ -65,7 +65,7 @@ export const EXPLOSIVE_DEFS: Record<string, ExplosiveDef> = {
   c4: { radius: 6, baseForce: 1200, color: 0x3366cc, label: 'C4' },
   nuke: { radius: 30, baseForce: 3000, color: 0xcc0000, label: '原子弹' },
   cluster: { radius: 10, baseForce: 150, color: 0x99aa00, label: '集束炸弹' },
-  blackhole: { radius: 8, baseForce: 0, color: 0x331166, label: '黑洞装置' },
+  blackhole: { radius: 25, baseForce: 0, color: 0x331166, label: '黑洞装置' },
   emp: { radius: 6, baseForce: 400, color: 0x4488ff, label: '电磁脉冲' },
 };
 
@@ -107,7 +107,7 @@ export const CLUSTER_SUB_SPREAD = 4;
 // ============================================================
 // 黑洞装置
 // ============================================================
-export const BLACKHOLE_RADIUS = 8;
+export const BLACKHOLE_RADIUS = 25;
 export const BLACKHOLE_COLOR = 0x331166;
 export const BLACKHOLE_SUCK_DURATION = 2.0;
 export const BLACKHOLE_CHARGE_DURATION = 0.5;
