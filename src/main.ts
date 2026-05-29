@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { initRenderer, getCamera, getScene } from './renderer';
+import { initRenderer, getCamera, getScene, renderWithDistortion, setBlackHoleDistortion } from './renderer';
 import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives, createSingleBuilding, createSingleVehicle, createSingleTree, createSandbag, createBarricade, createMineModel, createRemoteBombModel } from './scene';
 import { initPhysics, DebrisPiece } from './physics';
 import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives, scoreState, loadHighScore, resetScore, addChainScore, updateBlackHolePhysics } from './game';
-import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect, sprayFlameEffect, sprayIceEffect, sprayParticleEffect, getScreenFlash, igniteObject } from './effects';
+import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect, sprayFlameEffect, sprayIceEffect, sprayParticleEffect, getScreenFlash, igniteObject, activeBlackHoleStates } from './effects';
 import { createUI, updateUI, showFloatText } from './ui';
 import { createInputState, setupInput } from './input';
 import { createWeaponPanel, WeaponPanelState } from './weaponpanel';
@@ -478,7 +478,15 @@ function animate() {
     }
   }
 
-  renderer.render(scene, camera);
+  // Black hole distortion
+  const activeBH = activeBlackHoleStates.find(bh => bh.active);
+  if (activeBH) {
+    setBlackHoleDistortion(activeBH.worldPos, 5);
+  } else {
+    setBlackHoleDistortion(null, 0);
+  }
+
+  renderWithDistortion();
 }
 
 animate();

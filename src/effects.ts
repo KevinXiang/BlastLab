@@ -488,52 +488,202 @@ export function spawnClusterEffect(position: THREE.Vector3): void {
 }
 
 // ============================================================
-// Black Hole: suck → charge → eject
+// Black Hole: 3-phase realistic — formation → accretion → Hawking radiation
 // ============================================================
+
+export interface BlackHoleState {
+  worldPos: THREE.Vector3;
+  elapsed: number;
+  active: boolean;
+}
+
+export const activeBlackHoleStates: BlackHoleState[] = [];
+
 export function spawnBlackHoleEffect(position: THREE.Vector3): void {
   const scene = getScene();
 
-  const coreGeo = new THREE.SphereGeometry(0.5, 8, 8);
-  const coreMat = new THREE.MeshBasicMaterial({ color: 0x110022, transparent: true, opacity: 0.8 });
+  // === Phase 1: Core sphere + glow + accretion disc ===
+  const coreGeo = new THREE.SphereGeometry(0.3, 32, 16);
+  const coreMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
   const core = new THREE.Mesh(coreGeo, coreMat);
-  core.position.copy(position);
-  core.position.y += 1;
+  core.position.copy(position).add(new THREE.Vector3(0, 1, 0));
   scene.add(core);
 
-  let elapsed = 0;
+  // Glow halo (larger, transparent purple)
+  const haloGeo = new THREE.SphereGeometry(0.6, 16, 8);
+  const haloMat = new THREE.MeshBasicMaterial({ color: 0x331166, transparent: true, opacity: 0.4 });
+  const halo = new THREE.Mesh(haloGeo, haloMat);
+  core.add(halo);
+
+  // Accretion disc (inner bright ring)
+  const discGeo = new THREE.TorusGeometry(0.5, 0.08, 8, 32);
+  const discMat = new THREE.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.8 });
+  const disc = new THREE.Mesh(discGeo, discMat);
+  disc.rotation.x = Math.PI / 2;
+  core.add(disc);
+
+  // Outer disc ring (dimmer, redder)
+  const outerDiscGeo = new THREE.TorusGeometry(0.8, 0.12, 8, 32);
+  const outerDiscMat = new THREE.MeshBasicMaterial({ color: 0x882244, transparent: true, opacity: 0.5 });
+  const outerDisc = new THREE.Mesh(outerDiscGeo, outerDiscMat);
+  outerDisc.rotation.x = Math.PI / 2.1;
+  core.add(outerDisc);
+
+  // === Particle tracking ===
+  interface BHSpiralParticle {
+    mesh: THREE.Mesh;
+    angle: number;
+    radius: number;
+    speed: number;
+    height: number;
+  }
+  const spiralParticles: BHSpiralParticle[] = [];
+
+  // Pre-create spiral particles
+  for (let i = 0; i < 60; i++) {
+    const pGeo = new THREE.SphereGeometry(0.05, 3, 2);
+    const pMat = new THREE.MeshBasicMaterial({ color: 0x8844cc });
+    const pMesh = new THREE.Mesh(pGeo, pMat);
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 3 + Math.random() * 5;
+    pMesh.position.set(
+      position.x + Math.cos(angle) * radius,
+      position.y + 1 + (Math.random() - 0.5) * 2,
+      position.z + Math.sin(angle) * radius,
+    );
+    scene.add(pMesh);
+    spiralParticles.push({ mesh: pMesh, angle, radius, speed: 0.5 + Math.random() * 1.5, height: pMesh.position.y });
+  }
+
+  const state: BlackHoleState = { worldPos: position.clone(), elapsed: 0, active: true };
+  activeBlackHoleStates.push(state);
+
+  // === Animation ===
   const suckDuration = 2.0;
-  const totalDuration = suckDuration + 0.5;
+  const flashDuration = 0.3;
+  const totalDuration = suckDuration + 0.5 + flashDuration; // suck + charge + flash
+
+  let phase2Started = false;
+  let phase3Started = false;
 
   function animateBlackHole(dt: number): boolean {
-    elapsed += dt;
+    state.elapsed += dt;
+    const elapsed = state.elapsed;
 
+    // Phase 1+2: Formation + Suck (0 → 2.0s)
     if (elapsed < suckDuration) {
       const t = elapsed / suckDuration;
-      core.scale.setScalar(1 + t * 3);
-      coreMat.opacity = 0.8 * (1 - t * 0.3);
-      for (let i = 0; i < 3; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const dist = 5 + Math.random() * 3;
-        const p = position.clone().add(
-          new THREE.Vector3(Math.cos(angle) * dist, Math.random() * 3, Math.sin(angle) * dist),
-        );
-        const dir = position.clone().sub(p).normalize();
-        addParticle(p, dir.multiplyScalar(3 + Math.random() * 5), 0x6633aa, 0.08, 0.8);
+      // Core grows
+      core.scale.setScalar(0.5 + t * 5);
+      // Glow intensifies then stabilizes
+      haloMat.opacity = 0.3 + t * 0.3;
+      // Disc scales with core
+      disc.scale.setScalar(0.5 + t * 4);
+      disc.rotation.z += dt * 3;
+      outerDisc.scale.setScalar(0.5 + t * 4.5);
+      outerDisc.rotation.z -= dt * 2.5;
+      // Disc color shift: white-hot inner, orange outer
+      const discT = t;
+      discMat.color.setRGB(0.8 + discT * 0.2, 0.4 + discT * 0.3, 0.1 + discT * 0.1);
+      outerDiscMat.color.setRGB(0.4 + discT * 0.1, 0.1, 0.2 + discT * 0.1);
+
+      // Spiral particles
+      for (const sp of spiralParticles) {
+        sp.radius -= dt * sp.speed * (1 + t);
+        sp.angle += dt * (2 + t * 4) / (sp.radius + 0.3);
+        sp.mesh.position.x = position.x + Math.cos(sp.angle) * sp.radius;
+        sp.mesh.position.z = position.z + Math.sin(sp.angle) * sp.radius;
+        sp.mesh.position.y += (position.y + 1 - sp.mesh.position.y) * dt * 0.5;
+        // Stretch near core
+        const nearCore = Math.max(0, 1 - sp.radius / 2);
+        sp.mesh.scale.set(1 + nearCore * 3, 1 - nearCore * 0.5, 1);
+        // Color shift: farther = purple, closer = white-hot
+        const c = nearCore;
+        (sp.mesh.material as THREE.MeshBasicMaterial).color.setRGB(0.5 + c * 0.5, 0.2 + c * 0.5, 1 - c * 0.5);
+        // Remove if reached core
+        if (sp.radius < 0.5) {
+          scene.remove(sp.mesh);
+          sp.mesh.geometry.dispose();
+          (sp.mesh.material as THREE.Material).dispose();
+          sp.radius = 999; // mark for removal
+        }
       }
-    } else if (elapsed < totalDuration) {
-      coreMat.color.setHex(0xffffff);
-      coreMat.opacity = 1;
-      core.scale.setScalar(5 + Math.random());
-    } else {
-      scene.remove(core);
-      coreGeo.dispose();
-      coreMat.dispose();
-      for (let i = 0; i < 40; i++) {
-        const color = [0x9933ff, 0x6633cc, 0xffffff][Math.floor(Math.random() * 3)];
-        addParticle(position.clone().add(new THREE.Vector3(0, 1, 0)), randomVelocity(15, 5), color, 0.12, 0.6 + Math.random() * 0.5);
-      }
-      return false;
     }
+
+    // Charge phase (2.0 → 2.5s) — core shrinks, disc brightens
+    if (elapsed >= suckDuration && elapsed < suckDuration + 0.5) {
+      if (!phase2Started) {
+        phase2Started = true;
+        // Remove spiral particles
+        for (const sp of spiralParticles) {
+          if (sp.radius === 999) continue;
+          scene.remove(sp.mesh);
+          sp.mesh.geometry.dispose();
+          (sp.mesh.material as THREE.Material).dispose();
+        }
+      }
+      const ct = (elapsed - suckDuration) / 0.5;
+      core.scale.setScalar(5 - ct * 4.8); // shrink
+      disc.scale.setScalar(4.5 - ct * 4);
+      outerDisc.scale.setScalar(5 - ct * 4.5);
+      haloMat.opacity = 0.6 + ct * 0.4;
+      // Brighten disc
+      discMat.color.setRGB(1, 0.7 + ct * 0.3, 0.5 + ct * 0.5);
+      haloMat.color.setHex(0x6633cc + Math.floor(ct * 0x33));
+    }
+
+    // Phase 3: Hawking radiation flash (2.5 → 2.8s)
+    if (elapsed >= suckDuration + 0.5 && elapsed < totalDuration) {
+      if (!phase3Started) {
+        phase3Started = true;
+        // Remove core + disc
+        scene.remove(core);
+        coreGeo.dispose();
+        coreMat.dispose();
+        haloGeo.dispose();
+        haloMat.dispose();
+        discGeo.dispose();
+        discMat.dispose();
+        outerDiscGeo.dispose();
+        outerDiscMat.dispose();
+
+        // White flash sphere
+        const flashGeo = new THREE.SphereGeometry(0.3, 16, 8);
+        const flashMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 });
+        const flash = new THREE.Mesh(flashGeo, flashMat);
+        flash.position.copy(position).add(new THREE.Vector3(0, 1, 0));
+        scene.add(flash);
+
+        // Flash animation sub-function
+        let flashElapsed = 0;
+        function animateFlash(dt2: number): boolean {
+          flashElapsed += dt2;
+          flash.scale.setScalar(1 + flashElapsed * 30);
+          flashMat.opacity = Math.max(0, 1 - flashElapsed / flashDuration * 3);
+          if (flashElapsed >= flashDuration) {
+            scene.remove(flash);
+            flashGeo.dispose();
+            flashMat.dispose();
+            return false;
+          }
+          return true;
+        }
+        activeAnimations.push(animateFlash);
+
+        // High-energy particle burst (Hawking radiation)
+        for (let i = 0; i < 80; i++) {
+          const isHigh = i < 20;
+          const color = isHigh ? 0xffffff : [0x9933ff, 0x6633cc, 0xcc88ff][Math.floor(Math.random() * 3)];
+          const speed = isHigh ? 18 : 10 + Math.random() * 8;
+          const burstOrigin = position.clone().add(new THREE.Vector3(0, 1, 0));
+          addParticle(burstOrigin, randomVelocity(speed, speed * 0.3), color, 0.06, 0.3 + Math.random() * 0.5);
+        }
+      }
+
+      state.active = false;
+      return false; // Main animation done
+    }
+
     return true;
   }
   activeAnimations.push(animateBlackHole);
