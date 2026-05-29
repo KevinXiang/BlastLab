@@ -577,6 +577,8 @@ export function removeAllExplosives(): void {
   placedExplosiveMeshes.length = 0;
 }
 
+const targetMarkers: THREE.Mesh[] = [];
+
 export function clearScene(): void {
   const scene = getScene();
   const world = getWorld();
@@ -587,6 +589,13 @@ export function clearScene(): void {
     (b.mesh.material as THREE.Material).dispose();
   }
   buildings.length = 0;
+
+  for (const m of targetMarkers) {
+    scene.remove(m);
+    m.geometry.dispose();
+    (m.material as THREE.Material).dispose();
+  }
+  targetMarkers.length = 0;
 
   for (const v of vehicles) {
     scene.remove(v.body);
@@ -605,10 +614,12 @@ export function clearScene(): void {
   resetIdCounter();
 }
 
-export function buildFromLayout(layout: BuildingDef[]): void {
+export function buildFromLayout(layout: BuildingDef[], targetIds?: number[]): void {
   const scene = getScene();
+  const targetSet = new Set(targetIds ?? []);
 
-  for (const def of layout) {
+  for (let i = 0; i < layout.length; i++) {
+    const def = layout[i];
     const geo = new THREE.BoxGeometry(def.w, def.h, def.d);
     const mat = new THREE.MeshToonMaterial({ color: def.color });
     const mesh = new THREE.Mesh(geo, mat);
@@ -621,5 +632,15 @@ export function buildFromLayout(layout: BuildingDef[]): void {
     const id = nextId++;
     physicsBodies.push({ body, mesh, isBuilding: true, objectId: id });
     buildings.push({ mesh, width: def.w, depth: def.d, height: def.h, id });
+
+    // Add red beacon above target buildings
+    if (targetSet.has(id)) {
+      const markerGeo = new THREE.SphereGeometry(0.25, 8, 4);
+      const markerMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+      const marker = new THREE.Mesh(markerGeo, markerMat);
+      marker.position.set(def.x, def.h + 0.6, def.z);
+      scene.add(marker);
+      targetMarkers.push(marker);
+    }
   }
 }

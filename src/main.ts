@@ -15,7 +15,7 @@ import {
   CAMERA_DRAG_SENSITIVITY, CAMERA_SCROLL_SENSITIVITY,
 } from './constants';
 import { setDestroyCallback } from './destruction';
-import { initLevelSystem, startLevel, updateLevelTimer, checkObjectives, checkFailCondition, getPhase, getLevelState, recordSkip, returnToMenu, canPlace, consumeWeapon, isWeaponRestricted, LEVELS, getProgress } from './level';
+import { initLevelSystem, startLevel, updateLevelTimer, checkObjectives, checkFailCondition, getPhase, getLevelState, recordSkip, returnToMenu, canPlace, consumeWeapon, isWeaponRestricted, LEVELS, getProgress, LevelConfig } from './level';
 
 const container = document.getElementById('app')!;
 const { camera, renderer, scene } = initRenderer(container);
@@ -164,7 +164,7 @@ window.addEventListener('level-start', ((e: CustomEvent) => {
   debrisList.length = 0;
   resultPopupShown = false;
 
-  buildFromLayout(config.buildings);
+  buildFromLayout(config.buildings, getTargetIds(config));
   createVehicles();
   createDecorations();
 
@@ -177,6 +177,13 @@ const debrisList: DebrisPiece[] = [];
 let lastTime = performance.now();
 
 let placedCount = 0;
+
+function getTargetIds(config: LevelConfig): number[] {
+  for (const obj of config.objectives) {
+    if (obj.type === 'destroy_targets') return obj.targetIds;
+  }
+  return [];
+}
 
 function placeItem(type: string, x: number, z: number): void {
   if (isWeaponRestricted(type)) return;
@@ -264,7 +271,7 @@ function animate() {
           resultPopupShown = false;
           const next = startLevel(ls.config.id + 1);
           if (next) {
-            buildFromLayout(next.buildings);
+            buildFromLayout(next.buildings, getTargetIds(next));
             createVehicles();
             createDecorations();
           }
@@ -281,7 +288,7 @@ function animate() {
           resultPopupShown = false;
           const config = startLevel(ls.config.id);
           if (config) {
-            buildFromLayout(config.buildings);
+            buildFromLayout(config.buildings, getTargetIds(config));
             createVehicles();
             createDecorations();
           }
