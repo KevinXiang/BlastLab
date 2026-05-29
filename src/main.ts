@@ -94,6 +94,11 @@ function getGroundIntersection(clientX: number, clientY: number): THREE.Vector3 
 function handleClick(): void {
   if (!input.mouseDown) return;
 
+  const type = panelState.selectedType || uiState.selectedExplosive;
+
+  // Spray weapons are handled continuously in animate(), not on click
+  if (isSprayType(type)) return;
+
   mouse.x = (input.mouseX / container.clientWidth) * 2 - 1;
   mouse.y = -(input.mouseY / container.clientHeight) * 2 + 1;
 
@@ -104,7 +109,6 @@ function handleClick(): void {
   raycaster.ray.intersectPlane(groundPlane, intersection);
 
   if (intersection) {
-    const type = panelState.selectedType || uiState.selectedExplosive;
     placeItem(type, intersection.x, intersection.z);
   }
 
