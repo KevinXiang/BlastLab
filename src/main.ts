@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { initRenderer, getCamera, getScene } from './renderer';
-import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives, createSingleBuilding, createSingleVehicle, createSingleTree, createSandbag, createBarricade, createMineModel, createRemoteBombModel, clearScene, buildFromLayout, createVehicles, createDecorations } from './scene';
+import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives, createSingleBuilding, createSingleVehicle, createSingleTree, createSandbag, createBarricade, createMineModel, createRemoteBombModel } from './scene';
 import { initPhysics, DebrisPiece } from './physics';
-import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives } from './game';
-import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect } from './effects';
-import { createUI, updateUI, showResultPopup, showLevelIntro } from './ui';
+import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives, scoreState, loadHighScore, resetScore, addChainScore } from './game';
+import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect, sprayFlameEffect, sprayIceEffect, sprayParticleEffect, getScreenFlash } from './effects';
+import { createUI, updateUI, showFloatText } from './ui';
 import { createInputState, setupInput } from './input';
 import { createWeaponPanel, WeaponPanelState } from './weaponpanel';
 import {
@@ -13,9 +13,10 @@ import {
   CAMERA_ORBIT_DISTANCE, CAMERA_ELEVATION,
   CAMERA_ROTATE_SPEED, CAMERA_ZOOM_SPEED,
   CAMERA_DRAG_SENSITIVITY, CAMERA_SCROLL_SENSITIVITY,
+  SPRAY_FLAME_RANGE, SPRAY_FLAME_FORCE,
+  SPRAY_ICE_RANGE, SPRAY_ICE_SLOW_FACTOR,
+  SPRAY_PARTICLE_RANGE, SPRAY_PARTICLE_FORCE,
 } from './constants';
-import { setDestroyCallback } from './destruction';
-import { initLevelSystem, startLevel, updateLevelTimer, checkObjectives, checkFailCondition, getPhase, getLevelState, recordSkip, returnToMenu, canPlace, consumeWeapon, isWeaponRestricted, LEVELS, getProgress, LevelConfig } from './level';
 
 const container = document.getElementById('app')!;
 const { camera, renderer, scene } = initRenderer(container);
@@ -24,7 +25,7 @@ const world = initPhysics();
 
 createScene();
 
-initLevelSystem();
+loadHighScore();
 
 const input = createInputState();
 setupInput(input, renderer.domElement);
@@ -133,6 +134,7 @@ window.addEventListener('game-reset', () => {
   clearPlacedExplosives();
   clearRemoteBombs();
   clearMines();
+  resetScore();
   for (const d of debrisList) {
     world.removeBody(d.body);
     scene.remove(d.mesh);
@@ -141,53 +143,14 @@ window.addEventListener('game-reset', () => {
   }
   debrisList.length = 0;
 });
-
-setDestroyCallback((type, id) => {
-  const ls = getLevelState();
-  if (ls && getPhase() === 'playing') {
-    ls.destroyedObjectIds.add(id);
-  }
-});
-
-window.addEventListener('level-start', ((e: CustomEvent) => {
-  const id = e.detail.id;
-  const config = LEVELS.find(l => l.id === id);
-  if (!config) return;
-
-  clearScene();
-  for (const d of debrisList) {
-    world.removeBody(d.body);
-    scene.remove(d.mesh);
-    d.mesh.geometry.dispose();
-    (d.mesh.material as THREE.Material).dispose();
-  }
-  debrisList.length = 0;
-  resultPopupShown = false;
-
-  buildFromLayout(config.buildings, getTargetIds(config));
-  createVehicles();
-  createDecorations();
-
-  showLevelIntro(container, config, () => {
-    startLevel(id);
-  });
-}) as EventListener);
 
 const debrisList: DebrisPiece[] = [];
 let lastTime = performance.now();
 
 let placedCount = 0;
 
-function getTargetIds(config: LevelConfig): number[] {
-  for (const obj of config.objectives) {
-    if (obj.type === 'destroy_targets') return obj.targetIds;
-  }
-  return [];
-}
-
 function placeItem(type: string, x: number, z: number): void {
-  if (isWeaponRestricted(type)) return;
-  if (!canPlace(type)) return;
+  if (isSprayType(type)) return;
 
   const pos = new CANNON.Vec3(x, 0, z);
   const pos3 = new THREE.Vector3(x, 1, z);
@@ -199,6 +162,18 @@ function placeItem(type: string, x: number, z: number): void {
     case 'nuke':
       placeExplosive(type, pos);
       createExplosiveMesh(type, pos);
+      break;
+    case 'cluster':
+      placeExplosive('cluster', pos);
+      createExplosiveMesh('cluster', pos);
+      break;
+    case 'blackhole':
+      placeExplosive('blackhole', pos);
+      createExplosiveMesh('blackhole', pos);
+      break;
+    case 'emp':
+      placeExplosive('emp', pos);
+      createExplosiveMesh('emp', pos);
       break;
     case 'remote_bomb': {
       const mesh = createRemoteBombModel(x, z);
@@ -220,11 +195,42 @@ function placeItem(type: string, x: number, z: number): void {
     case 'sandbag': createSandbag(x, z); break;
     case 'barricade': createBarricade(x, z); break;
   }
-
-  consumeWeapon(type);
 }
 
-let resultPopupShown = false;
+function getSelectedType(): string {
+  return panelState.selectedType || uiState.selectedExplosive;
+}
+
+function isSprayType(type: string): boolean {
+  return type === 'flamethrower' || type === 'ice_spray' || type === 'particle_spray';
+}
+
+let shakeAmount = 0;
+let shakeDuration = 0;
+
+function addScreenShake(intensity: number, duration: number): void {
+  shakeAmount = Math.max(shakeAmount, intensity);
+  shakeDuration = Math.max(shakeDuration, duration);
+}
+
+function applySprayForce(origin: THREE.Vector3, direction: THREE.Vector3, range: number, force: number, dt: number, mode: 'burn' | 'freeze' | 'push'): void {
+  for (const pb of physicsBodies) {
+    if (pb.body.mass === 0) continue;
+    const p = new THREE.Vector3(pb.body.position.x, pb.body.position.y, pb.body.position.z);
+    const toTarget = p.clone().sub(origin);
+    const dist = toTarget.length();
+    if (dist > range) continue;
+    const toTargetNorm = toTarget.normalize();
+    const dot = toTargetNorm.dot(direction);
+    if (dot < 0.7) continue;
+    if (mode === 'freeze') {
+      pb.body.velocity.scale(1 - (1 - force) * dt * (1 - dist / range), pb.body.velocity);
+    } else {
+      const impulse = direction.clone().multiplyScalar(force * dt * (1 - dist / range));
+      pb.body.applyImpulse(new CANNON.Vec3(impulse.x, impulse.y, impulse.z), pb.body.position);
+    }
+  }
+}
 
 function animate() {
   requestAnimationFrame(animate);
@@ -237,78 +243,55 @@ function animate() {
   handleClick();
   updateUI(container, uiState);
 
-  // Level mode lifecycle
-  const phase = getPhase();
-  if (phase === 'playing') {
-    updateLevelTimer(dt);
-    checkObjectives();
-    checkFailCondition();
+  // Screen shake
+  if (shakeDuration > 0) {
+    shakeDuration -= dt;
+    const cam = getCamera();
+    cam.position.x += (Math.random() - 0.5) * shakeAmount * 0.1;
+    cam.position.y += (Math.random() - 0.5) * shakeAmount * 0.1;
+    if (shakeDuration <= 0) shakeAmount = 0;
   }
 
-  // Result popup (only once per state transition)
-  const newPhase = getPhase();
-  if ((newPhase === 'complete' || newPhase === 'failed') && !resultPopupShown) {
-    resultPopupShown = true;
-    const ls = getLevelState();
-    if (ls) {
-      const isComplete = newPhase === 'complete';
-      const progress = getProgress();
-      const record = progress.records[ls.config.id];
-      const canSkip = (record?.failCount ?? 0) >= 5;
-
-      showResultPopup(
-        container,
-        isComplete,
-        isComplete && ls.config.id < LEVELS.length ? () => {
-          clearScene();
-          for (const d of debrisList) {
-            world.removeBody(d.body);
-            scene.remove(d.mesh);
-            d.mesh.geometry.dispose();
-            (d.mesh.material as THREE.Material).dispose();
-          }
-          debrisList.length = 0;
-          resultPopupShown = false;
-          const next = startLevel(ls.config.id + 1);
-          if (next) {
-            buildFromLayout(next.buildings, getTargetIds(next));
-            createVehicles();
-            createDecorations();
-          }
-        } : null,
-        () => {
-          clearScene();
-          for (const d of debrisList) {
-            world.removeBody(d.body);
-            scene.remove(d.mesh);
-            d.mesh.geometry.dispose();
-            (d.mesh.material as THREE.Material).dispose();
-          }
-          debrisList.length = 0;
-          resultPopupShown = false;
-          const config = startLevel(ls.config.id);
-          if (config) {
-            buildFromLayout(config.buildings, getTargetIds(config));
-            createVehicles();
-            createDecorations();
-          }
-        },
-        () => {
-          returnToMenu();
-          clearScene();
-          for (const d of debrisList) {
-            world.removeBody(d.body);
-            scene.remove(d.mesh);
-            d.mesh.geometry.dispose();
-            (d.mesh.material as THREE.Material).dispose();
-          }
-          debrisList.length = 0;
-          resultPopupShown = false;
-          createScene();
-        },
-        canSkip ? () => { recordSkip(); returnToMenu(); } : null,
-      );
+  // Spray weapons
+  const selectedType = getSelectedType();
+  input.spraying = input.mouseDown && isSprayType(selectedType);
+  if (input.spraying) {
+    const cam = getCamera();
+    const dir = new THREE.Vector3();
+    cam.getWorldDirection(dir);
+    dir.y = 0; dir.normalize();
+    const intersection = getGroundIntersection(input.mouseX, input.mouseY);
+    if (intersection) {
+      const origin = intersection.clone().add(new THREE.Vector3(0, 1.5, 0));
+      switch (selectedType) {
+        case 'flamethrower':
+          sprayFlameEffect(origin, dir, dt);
+          applySprayForce(origin, dir, SPRAY_FLAME_RANGE, SPRAY_FLAME_FORCE, dt, 'burn');
+          break;
+        case 'ice_spray':
+          sprayIceEffect(origin, dir, dt);
+          applySprayForce(origin, dir, SPRAY_ICE_RANGE, SPRAY_ICE_SLOW_FACTOR, dt, 'freeze');
+          break;
+        case 'particle_spray':
+          sprayParticleEffect(origin, dir, dt);
+          applySprayForce(origin, dir, SPRAY_PARTICLE_RANGE, SPRAY_PARTICLE_FORCE, dt, 'push');
+          break;
+      }
     }
+  }
+
+  // Screen flash (EMP)
+  const flash = getScreenFlash();
+  if (flash > 0.01) {
+    let flashEl = document.getElementById('emp-flash');
+    if (!flashEl) {
+      flashEl = document.createElement('div');
+      flashEl.id = 'emp-flash';
+      flashEl.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:white;pointer-events:none;z-index:15;';
+      container.appendChild(flashEl);
+    }
+    flashEl.style.opacity = String(flash * 0.4);
+    if (flash < 0.02) flashEl.style.opacity = '0';
   }
 
   // Panel toggle
@@ -345,6 +328,18 @@ function animate() {
   if (input.detonate) {
     detonateAll(physicsBodies, debrisList, scene);
     removeAllExplosives();
+    if (scoreState.lastScore && scoreState.lastScorePosition) {
+      const cam = getCamera();
+      const screenPos = scoreState.lastScorePosition.clone().project(cam);
+      const sx = (screenPos.x * 0.5 + 0.5) * container.clientWidth;
+      const sy = (-screenPos.y * 0.5 + 0.5) * container.clientHeight;
+      const b = scoreState.lastScore;
+      const total = b.destroyScore + b.impactScore + b.chainScore;
+      if (total > 0) {
+        showFloatText(container, total, b.destroyScore, b.impactScore, b.chainScore, sx, sy);
+      }
+    }
+    addScreenShake(6, 0.6);
     input.detonate = false;
   }
 
@@ -366,6 +361,22 @@ function animate() {
     d.mesh.position.copy(d.body.position as any);
     d.mesh.quaternion.copy(d.body.quaternion as any);
     d.life -= dt;
+
+    if (d.body.velocity.length() > 8) {
+      for (const pb of physicsBodies) {
+        if (!pb.isBuilding) continue;
+        const dist = d.body.position.distanceTo(pb.body.position);
+        if (dist < 2.5) {
+          const impactForce = d.body.velocity.length() * d.body.mass;
+          if (impactForce > 300) {
+            const dir = new CANNON.Vec3(d.body.position.x - pb.body.position.x, 0.1, d.body.position.z - pb.body.position.z);
+            dir.normalize();
+            pb.body.applyImpulse(dir.scale(impactForce * 0.3), pb.body.position);
+            addChainScore();
+          }
+        }
+      }
+    }
 
     const speed = d.body.velocity.length();
     if (speed < 0.3 || d.life <= 0) {
