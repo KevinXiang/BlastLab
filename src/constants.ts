@@ -3,7 +3,7 @@ export const WORLD_SIZE = 60;
 export const GROUND_Y = 0;
 
 // 相机
-export const CAMERA_ZOOM = 18;
+export const CAMERA_ZOOM = 30;
 export const CAMERA_MIN_ZOOM = 8;
 export const CAMERA_MAX_ZOOM = 30;
 export const CAMERA_NEAR = 0.1;
