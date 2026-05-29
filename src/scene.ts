@@ -304,6 +304,16 @@ export function createSingleTree(x: number, z: number): void {
 
   tree.position.set(x, 0, z);
   scene.add(tree);
+
+  const treeBody = new CANNON.Body({
+    mass: 30,
+    shape: new CANNON.Cylinder(0.15, 0.2, 1.5, 6),
+  });
+  treeBody.position.set(x, 0.75, z);
+  treeBody.linearDamping = 0.4;
+  treeBody.angularDamping = 0.4;
+  getWorld().addBody(treeBody);
+  physicsBodies.push({ body: treeBody, mesh: tree, isBuilding: false });
 }
 
 export interface PlacedExplosive {
