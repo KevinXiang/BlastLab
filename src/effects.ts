@@ -457,6 +457,189 @@ export function spawnMushroomCloud(position: THREE.Vector3): void {
 }
 
 // ============================================================
+// Cluster bomb: parent airburst → 8 submunitions
+// ============================================================
+export function spawnClusterEffect(position: THREE.Vector3): void {
+  const scene = getScene();
+  const parentColors = [0xff8800, 0xffaa00, 0xff6600];
+
+  const airPos = position.clone();
+  airPos.y += 5;
+
+  for (let i = 0; i < 15; i++) {
+    const color = parentColors[Math.floor(Math.random() * parentColors.length)];
+    addParticle(airPos, randomVelocity(4, 2), color, 0.15, 0.3 + Math.random() * 0.4);
+  }
+
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2 + Math.random() * 0.3;
+    const spread = 2 + Math.random() * 3;
+    const subPos = airPos.clone().add(
+      new THREE.Vector3(Math.cos(angle) * spread, -1, Math.sin(angle) * spread),
+    );
+
+    setTimeout(() => {
+      for (let j = 0; j < 8; j++) {
+        const c = parentColors[Math.floor(Math.random() * parentColors.length)];
+        addParticle(subPos, randomVelocity(3, 1), c, 0.1, 0.2 + Math.random() * 0.3);
+      }
+    }, 200 + i * 50);
+  }
+}
+
+// ============================================================
+// Black Hole: suck → charge → eject
+// ============================================================
+export function spawnBlackHoleEffect(position: THREE.Vector3): void {
+  const scene = getScene();
+
+  const coreGeo = new THREE.SphereGeometry(0.5, 8, 8);
+  const coreMat = new THREE.MeshBasicMaterial({ color: 0x110022, transparent: true, opacity: 0.8 });
+  const core = new THREE.Mesh(coreGeo, coreMat);
+  core.position.copy(position);
+  core.position.y += 1;
+  scene.add(core);
+
+  let elapsed = 0;
+  const suckDuration = 2.0;
+  const totalDuration = suckDuration + 0.5;
+
+  function animateBlackHole(dt: number): boolean {
+    elapsed += dt;
+
+    if (elapsed < suckDuration) {
+      const t = elapsed / suckDuration;
+      core.scale.setScalar(1 + t * 3);
+      coreMat.opacity = 0.8 * (1 - t * 0.3);
+      for (let i = 0; i < 3; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 5 + Math.random() * 3;
+        const p = position.clone().add(
+          new THREE.Vector3(Math.cos(angle) * dist, Math.random() * 3, Math.sin(angle) * dist),
+        );
+        const dir = position.clone().sub(p).normalize();
+        addParticle(p, dir.multiplyScalar(3 + Math.random() * 5), 0x6633aa, 0.08, 0.8);
+      }
+    } else if (elapsed < totalDuration) {
+      coreMat.color.setHex(0xffffff);
+      coreMat.opacity = 1;
+      core.scale.setScalar(5 + Math.random());
+    } else {
+      scene.remove(core);
+      coreGeo.dispose();
+      coreMat.dispose();
+      for (let i = 0; i < 40; i++) {
+        const color = [0x9933ff, 0x6633cc, 0xffffff][Math.floor(Math.random() * 3)];
+        addParticle(position.clone().add(new THREE.Vector3(0, 1, 0)), randomVelocity(15, 5), color, 0.12, 0.6 + Math.random() * 0.5);
+      }
+      return false;
+    }
+    return true;
+  }
+  activeAnimations.push(animateBlackHole);
+}
+
+// ============================================================
+// EMP: blue-white lightning sphere + screen flash
+// ============================================================
+let screenFlashIntensity = 0;
+
+export function getScreenFlash(): number {
+  const v = screenFlashIntensity;
+  screenFlashIntensity *= 0.9;
+  return v;
+}
+
+export function spawnEMPEffect(position: THREE.Vector3): void {
+  const scene = getScene();
+  const colors = [0x4488ff, 0x88bbff, 0xffffff, 0xaaccff];
+
+  const sphereGeo = new THREE.SphereGeometry(0.5, 8, 8);
+  const sphereMat = new THREE.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.9 });
+  const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+  sphere.position.copy(position);
+  sphere.position.y += 1;
+  scene.add(sphere);
+
+  let elapsed = 0;
+  const duration = 0.6;
+
+  function animateEMP(dt: number): boolean {
+    elapsed += dt;
+    const t = elapsed / duration;
+    sphere.scale.setScalar(1 + t * 12);
+    sphereMat.opacity = Math.max(0, 0.9 * (1 - t));
+
+    for (let i = 0; i < 5; i++) {
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      const p = sphere.position.clone().add(
+        new THREE.Vector3((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 6),
+      );
+      addParticle(p, new THREE.Vector3(0, 10, 0), color, 0.06, 0.15);
+    }
+
+    if (elapsed >= duration) {
+      scene.remove(sphere);
+      sphereGeo.dispose();
+      sphereMat.dispose();
+      return false;
+    }
+    return true;
+  }
+  activeAnimations.push(animateEMP);
+
+  screenFlashIntensity = 1;
+}
+
+// ============================================================
+// Spray effects (continuous, called each frame while spraying)
+// ============================================================
+export function sprayFlameEffect(origin: THREE.Vector3, direction: THREE.Vector3, dt: number): void {
+  const colors = [0xff4400, 0xff6600, 0xff8800, 0xffaa00, 0xff2200];
+  const count = Math.floor(8 * dt * 60);
+  for (let i = 0; i < Math.max(1, count); i++) {
+    const spreadDir = direction.clone();
+    spreadDir.x += (Math.random() - 0.5) * 0.3;
+    spreadDir.z += (Math.random() - 0.5) * 0.3;
+    spreadDir.normalize();
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const speed = 4 + Math.random() * 6;
+    addParticle(
+      origin.clone().add(new THREE.Vector3((Math.random()-0.5)*0.3, (Math.random()-0.5)*0.3, (Math.random()-0.5)*0.3)),
+      spreadDir.multiplyScalar(speed),
+      color, 0.06, 0.3 + Math.random() * 0.4,
+    );
+  }
+}
+
+export function sprayIceEffect(origin: THREE.Vector3, direction: THREE.Vector3, dt: number): void {
+  const colors = [0x88ccff, 0xaaddff, 0xccddff, 0xffffff, 0x6699cc];
+  const count = Math.floor(6 * dt * 60);
+  for (let i = 0; i < Math.max(1, count); i++) {
+    const spreadDir = direction.clone();
+    spreadDir.x += (Math.random() - 0.5) * 0.3;
+    spreadDir.z += (Math.random() - 0.5) * 0.3;
+    spreadDir.normalize();
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    addParticle(origin, spreadDir.multiplyScalar(3 + Math.random() * 5), color, 0.05, 0.4 + Math.random() * 0.5);
+  }
+}
+
+export function sprayParticleEffect(origin: THREE.Vector3, direction: THREE.Vector3, dt: number): void {
+  const colors = [0x9933ff, 0xcc66ff, 0xaa44ff, 0xffffff, 0xdd88ff];
+  const count = Math.floor(5 * dt * 60);
+  for (let i = 0; i < Math.max(1, count); i++) {
+    const spreadDir = direction.clone();
+    spreadDir.x += (Math.random() - 0.5) * 0.2;
+    spreadDir.z += (Math.random() - 0.5) * 0.2;
+    spreadDir.normalize();
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const p = origin.clone().add(new THREE.Vector3((Math.random()-0.5)*0.2, (Math.random()-0.5)*0.2, (Math.random()-0.5)*0.2));
+    addParticle(p, spreadDir.multiplyScalar(8 + Math.random() * 10), color, 0.06, 0.2 + Math.random() * 0.3);
+  }
+}
+
+// ============================================================
 // Shared update
 // ============================================================
 export function updateEffects(dt: number): void {
