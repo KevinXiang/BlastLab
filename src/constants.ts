@@ -64,6 +64,9 @@ export const EXPLOSIVE_DEFS: Record<string, ExplosiveDef> = {
   tnt: { radius: 8, baseForce: 800, color: 0xcc6600, label: 'TNT' },
   c4: { radius: 6, baseForce: 1200, color: 0x3366cc, label: 'C4' },
   nuke: { radius: 30, baseForce: 3000, color: 0xcc0000, label: '原子弹' },
+  cluster: { radius: 10, baseForce: 150, color: 0x99aa00, label: '集束炸弹' },
+  blackhole: { radius: 8, baseForce: 0, color: 0x331166, label: '黑洞装置' },
+  emp: { radius: 6, baseForce: 400, color: 0x4488ff, label: '电磁脉冲' },
 };
 
 // ============================================================
@@ -91,3 +94,47 @@ export const FLASH_COLOR = 0xffffff;
 // 建造类
 export const SANDBAG_COLOR = 0xc2b280;
 export const BARRICADE_COLOR = 0xff6600;
+
+// ============================================================
+// 集束炸弹
+// ============================================================
+export const CLUSTER_RADIUS = 10;
+export const CLUSTER_FORCE = 150;
+export const CLUSTER_COLOR = 0x99aa00;
+export const CLUSTER_SUB_COUNT = 8;
+export const CLUSTER_SUB_SPREAD = 4;
+
+// ============================================================
+// 黑洞装置
+// ============================================================
+export const BLACKHOLE_RADIUS = 8;
+export const BLACKHOLE_COLOR = 0x331166;
+export const BLACKHOLE_SUCK_DURATION = 2.0;
+export const BLACKHOLE_CHARGE_DURATION = 0.5;
+export const BLACKHOLE_EJECT_FORCE = 2000;
+
+// ============================================================
+// 电磁脉冲
+// ============================================================
+export const EMP_RADIUS = 6;
+export const EMP_FORCE = 400;
+export const EMP_COLOR = 0x4488ff;
+export const EMP_FLASH_DURATION = 0.3;
+
+// ============================================================
+// 喷射类
+// ============================================================
+export const SPRAY_FLAME_RANGE = 7;
+export const SPRAY_FLAME_ENERGY = 5;
+export const SPRAY_FLAME_FORCE = 80;
+export const SPRAY_FLAME_TREE_IGNITE_TIME = 2;
+
+export const SPRAY_ICE_RANGE = 8;
+export const SPRAY_ICE_ENERGY = 4;
+export const SPRAY_ICE_SLOW_FACTOR = 0.1;
+
+export const SPRAY_PARTICLE_RANGE = 10;
+export const SPRAY_PARTICLE_ENERGY = 3;
+export const SPRAY_PARTICLE_FORCE = 500;
+
+export const SPRAY_CONE_ANGLE = Math.PI / 6;
