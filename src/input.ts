@@ -10,6 +10,10 @@ export interface InputState {
   mouseY: number;
   rightMouseDown: boolean;
   scrollDelta: number;
+  detonateGroup1: boolean;
+  detonateGroup2: boolean;
+  detonateGroup3: boolean;
+  togglePanel: boolean;
 }
 
 export function createInputState(): InputState {
@@ -25,6 +29,10 @@ export function createInputState(): InputState {
     mouseY: 0,
     rightMouseDown: false,
     scrollDelta: 0,
+    detonateGroup1: false,
+    detonateGroup2: false,
+    detonateGroup3: false,
+    togglePanel: false,
   };
 }
 
@@ -38,6 +46,10 @@ export function setupInput(input: InputState, canvas: HTMLCanvasElement): void {
       case '-': input.zoomOut = true; break;
       case ' ': input.detonate = true; break;
       case 'r': input.reset = true; break;
+      case '1': input.detonateGroup1 = true; break;
+      case '2': input.detonateGroup2 = true; break;
+      case '3': input.detonateGroup3 = true; break;
+      case '`': input.togglePanel = true; break;
     }
   });
 
@@ -50,6 +62,10 @@ export function setupInput(input: InputState, canvas: HTMLCanvasElement): void {
       case '-': input.zoomOut = false; break;
       case ' ': input.detonate = false; break;
       case 'r': input.reset = false; break;
+      case '1': input.detonateGroup1 = false; break;
+      case '2': input.detonateGroup2 = false; break;
+      case '3': input.detonateGroup3 = false; break;
+      case '`': input.togglePanel = false; break;
     }
   });
 
