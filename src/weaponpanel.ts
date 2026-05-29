@@ -2,11 +2,9 @@ export interface WeaponDef {
   type: string;
   label: string;
   icon: string;
-  category: 'explosive' | 'special' | 'construct';
+  category: 'explosive' | 'special' | 'spray' | 'physics' | 'construct';
+  disabled?: boolean;
 }
-
-import { LEVELS, startLevel, returnToMenu, getPhase, getProgress, recordSkip, initLevelSystem, getLevelState } from './level';
-import { resetProgress } from './persistence';
 
 const WEAPONS: WeaponDef[] = [
   // 爆炸类
@@ -16,10 +14,20 @@ const WEAPONS: WeaponDef[] = [
   { type: 'nuke', label: '原子弹', icon: '☢️', category: 'explosive' },
   { type: 'remote_bomb', label: '遥控炸弹', icon: '📡', category: 'explosive' },
   { type: 'mine', label: '地雷', icon: '💥', category: 'explosive' },
+  { type: 'cluster', label: '集束炸弹', icon: '💥', category: 'explosive' },
   // 特殊类
   { type: 'incendiary', label: '燃烧弹', icon: '🔥', category: 'special' },
   { type: 'smoke', label: '烟雾弹', icon: '💨', category: 'special' },
   { type: 'flash', label: '闪光弹', icon: '⚡', category: 'special' },
+  { type: 'emp', label: '电磁脉冲', icon: '⚡', category: 'special' },
+  // 喷射类
+  { type: 'flamethrower', label: '火焰喷射', icon: '🔥', category: 'spray' },
+  { type: 'ice_spray', label: '冰冻喷射', icon: '❄️', category: 'spray' },
+  { type: 'particle_spray', label: '粒子喷射', icon: '⚛️', category: 'spray' },
+  // 物理装置
+  { type: 'blackhole', label: '黑洞装置', icon: '🕳️', category: 'physics' },
+  { type: 'magnet', label: '磁铁 (开发中)', icon: '🧲', category: 'physics', disabled: true },
+  { type: 'bounce', label: '弹力板 (开发中)', icon: '🦘', category: 'physics', disabled: true },
   // 建造类
   { type: 'building', label: '建筑', icon: '🏠', category: 'construct' },
   { type: 'vehicle', label: '车辆', icon: '🚗', category: 'construct' },
@@ -70,6 +78,8 @@ export function createWeaponPanel(container: HTMLElement): WeaponPanelState {
   const categories = [
     { id: 'explosive', label: '爆炸类' },
     { id: 'special', label: '特殊类' },
+    { id: 'spray', label: '喷射类' },
+    { id: 'physics', label: '物理装置' },
     { id: 'construct', label: '建造类' },
   ];
 
@@ -86,29 +96,34 @@ export function createWeaponPanel(container: HTMLElement): WeaponPanelState {
     for (const item of items) {
       const card = document.createElement('div');
       card.dataset.weaponType = item.type;
+      const isDisabled = item.disabled === true;
       card.style.cssText = `
         padding: 6px 8px; background: rgba(255,255,255,0.1); border-radius: 6px;
-        cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 6px;
+        cursor: ${isDisabled ? 'default' : 'pointer'}; font-size: 12px; display: flex; align-items: center; gap: 6px;
         border: 1px solid transparent; transition: border 0.1s;
+        opacity: ${isDisabled ? '0.4' : '1'};
       `;
       card.innerHTML = `<span>${item.icon}</span><span>${item.label}</span>`;
-      card.draggable = true;
 
-      card.addEventListener('click', () => {
-        state.selectedType = state.selectedType === item.type ? null : item.type;
-        panel.querySelectorAll('[data-weapon-type]').forEach(el => {
-          (el as HTMLElement).style.borderColor = 'transparent';
+      if (!isDisabled) {
+        card.draggable = true;
+
+        card.addEventListener('click', () => {
+          state.selectedType = state.selectedType === item.type ? null : item.type;
+          panel.querySelectorAll('[data-weapon-type]').forEach(el => {
+            (el as HTMLElement).style.borderColor = 'transparent';
+          });
+          if (state.selectedType) {
+            card.style.borderColor = '#fff';
+          }
         });
-        if (state.selectedType) {
-          card.style.borderColor = '#fff';
-        }
-      });
 
-      card.addEventListener('dragstart', (e) => {
-        e.dataTransfer!.setData('text/plain', item.type);
-        card.style.opacity = '0.5';
-      });
-      card.addEventListener('dragend', () => { card.style.opacity = '1'; });
+        card.addEventListener('dragstart', (e) => {
+          e.dataTransfer!.setData('text/plain', item.type);
+          card.style.opacity = '0.5';
+        });
+        card.addEventListener('dragend', () => { card.style.opacity = '1'; });
+      }
 
       grid.appendChild(card);
     }
@@ -143,103 +158,15 @@ export function createWeaponPanel(container: HTMLElement): WeaponPanelState {
   });
   btnContainer.appendChild(resetBtn);
 
-  const modeBtn = document.createElement('button');
-  modeBtn.textContent = '沙盒';
-  modeBtn.style.cssText = `
+  const modeLabel = document.createElement('div');
+  modeLabel.textContent = '沙盒模式';
+  modeLabel.style.cssText = `
     flex: 1; padding: 8px 16px; background: #4caf50; color: #fff;
-    border: none; border-radius: 6px; cursor: pointer;
-    font-size: 13px;
+    border-radius: 6px; font-size: 13px; text-align: center;
   `;
-  modeBtn.addEventListener('click', () => {
-    const phase = getPhase();
-    if (phase === 'playing') {
-      returnToMenu();
-      modeBtn.textContent = '关卡';
-      modeBtn.style.background = '#ff9800';
-      levelList.style.display = 'none';
-    } else {
-      levelList.style.display = levelList.style.display === 'none' ? '' : 'none';
-      if (levelList.style.display !== 'none') refreshLevelList();
-      modeBtn.textContent = levelList.style.display !== 'none' ? '隐藏' : '关卡';
-    }
-  });
-  btnContainer.appendChild(modeBtn);
-
-  const resetProgressBtn = document.createElement('button');
-  resetProgressBtn.textContent = '重置进度';
-  resetProgressBtn.style.cssText = `
-    width: 100%; padding: 6px; background: #c62828; color: #fff;
-    border: none; border-radius: 4px; font-size: 11px; cursor: pointer;
-    margin-top: 8px;
-  `;
-  resetProgressBtn.addEventListener('click', () => {
-    if (confirm('确定要重置所有关卡进度吗？此操作不可撤销。')) {
-      resetProgress();
-      initLevelSystem();
-      refreshLevelList();
-      returnToMenu();
-    }
-  });
-  btnContainer.appendChild(resetProgressBtn);
+  btnContainer.appendChild(modeLabel);
 
   panel.appendChild(btnContainer);
-
-  // Level list section
-  const levelList = document.createElement('div');
-  levelList.id = 'level-list';
-  levelList.style.cssText = `
-    margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 12px;
-    display: none;
-  `;
-  const levelTitle = document.createElement('div');
-  levelTitle.textContent = '关卡列表';
-  levelTitle.style.cssText = 'font-size: 11px; color: #aaa; margin-bottom: 8px;';
-  levelList.appendChild(levelTitle);
-
-  const levelGrid = document.createElement('div');
-  levelGrid.style.cssText = 'display: flex; gap: 6px; flex-wrap: wrap;';
-  levelList.appendChild(levelGrid);
-  panel.appendChild(levelList);
-
-  function refreshLevelList(): void {
-    const progress = getProgress();
-    levelGrid.innerHTML = '';
-
-    for (const level of LEVELS) {
-      const record = progress.records[level.id];
-      const unlocked = level.id <= progress.unlockedLevel;
-      const card = document.createElement('div');
-      card.style.cssText = `
-        padding: 6px 10px; border-radius: 6px; font-size: 11px;
-        cursor: ${unlocked ? 'pointer' : 'default'};
-        background: ${unlocked ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)'};
-        opacity: ${unlocked ? '1' : '0.4'}; text-align: center; user-select: none;
-      `;
-
-      if (record?.completed) {
-        card.textContent = `${level.id} ${'⭐'.repeat(record.bestStars)}`;
-        card.style.background = 'rgba(76,175,80,0.3)';
-      } else if (record?.skipped) {
-        card.textContent = `${level.id} ⏭`;
-        card.style.background = 'rgba(255,152,0,0.3)';
-      } else if (unlocked) {
-        card.textContent = `${level.id}`;
-      } else {
-        card.textContent = `${level.id} 🔒`;
-      }
-
-      if (unlocked) {
-        card.addEventListener('click', () => {
-          window.dispatchEvent(new CustomEvent('level-start', { detail: { id: level.id } }));
-        });
-      }
-      levelGrid.appendChild(card);
-    }
-  }
-
-  (window as any).__refreshLevelList = refreshLevelList;
-
-  container.appendChild(panel);
 
   tab.addEventListener('click', () => togglePanel(panel, tab, state));
   return state;
