@@ -135,7 +135,6 @@ export function updateBlackHolePhysics(dt: number): void {
 
     if (bh.elapsed < BLACKHOLE_SUCK_DURATION) {
       // Suck phase: pull all bodies toward center
-      const suckForce = 800;
       for (const body of world.bodies) {
         if (body.mass === 0) continue;
         const dx = bh.position.x - body.position.x;
@@ -143,7 +142,7 @@ export function updateBlackHolePhysics(dt: number): void {
         const dz = bh.position.z - body.position.z;
         const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (dist < 0.3 || dist > BLACKHOLE_RADIUS) continue;
-        const strength = suckForce / (1 + dist * dist);
+        const strength = 8000 / (1 + dist * dist);
         const dir = new CANNON.Vec3(dx / dist, dy / dist, dz / dist);
         body.applyImpulse(dir.scale(strength * dt), body.position);
       }
@@ -161,7 +160,7 @@ export function updateBlackHolePhysics(dt: number): void {
         const dz = body.position.z - bh.position.z;
         const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (dist < 0.3 || dist > BLACKHOLE_RADIUS * 1.5) continue;
-        const strength = BLACKHOLE_EJECT_FORCE / (1 + dist * 0.5);
+        const strength = 10000 / (1 + dist * 0.3);
         const dir = new CANNON.Vec3(dx / dist, dy / dist + 0.3, dz / dist);
         dir.normalize();
         body.applyImpulse(dir.scale(strength * dt * 2), body.position);
