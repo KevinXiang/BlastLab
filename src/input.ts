@@ -6,6 +6,7 @@ export interface InputState {
   detonate: boolean;
   reset: boolean;
   mouseDown: boolean;
+  spraying: boolean;
   mouseX: number;
   mouseY: number;
   rightMouseDown: boolean;
@@ -25,6 +26,7 @@ export function createInputState(): InputState {
     detonate: false,
     reset: false,
     mouseDown: false,
+    spraying: false,
     mouseX: 0,
     mouseY: 0,
     rightMouseDown: false,
