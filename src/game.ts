@@ -1,13 +1,13 @@
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
-import { applyExplosion, fragmentBuilding, DebrisPiece, PhysicsBody } from './physics';
+import { applyExplosion, fragmentBuilding, DebrisPiece, PhysicsBody, getWorld } from './physics';
 import {
   spawnNitroglycerinEffect,
   spawnTntEffect,
   spawnC4Effect,
   spawnNukeEffect,
 } from './effects';
-import { EXPLOSIVE_DEFS, ExplosiveDef } from './constants';
+import { EXPLOSIVE_DEFS, ExplosiveDef, REMOTE_RADIUS, REMOTE_FORCE, MINE_RADIUS, MINE_FORCE } from './constants';
 
 interface PlacedExplosiveData {
   position: CANNON.Vec3;
@@ -106,4 +106,81 @@ export function getMode(): GameMode { return currentMode; }
 export function getRemaining(): Record<string, number> { return { ...remainingExplosives }; }
 export function getCurrentLevel(): LevelConfig | null {
   return currentMode === 'level' ? LEVELS[currentLevel] : null;
+}
+
+// Remote bombs: grouped detonation
+interface RemoteBomb {
+  position: CANNON.Vec3;
+  group: number;
+  mesh: THREE.Mesh;
+}
+
+const remoteBombs: RemoteBomb[] = [];
+
+export function placeRemoteBomb(
+  position: CANNON.Vec3,
+  group: number,
+  mesh: THREE.Mesh,
+): void {
+  remoteBombs.push({ position: position.clone(), group, mesh });
+}
+
+export function detonateGroup(group: number): THREE.Vector3[] {
+  const positions: THREE.Vector3[] = [];
+  for (let i = remoteBombs.length - 1; i >= 0; i--) {
+    const bomb = remoteBombs[i];
+    if (bomb.group === group) {
+      applyExplosion({ position: bomb.position, radius: REMOTE_RADIUS, baseForce: REMOTE_FORCE });
+      positions.push(new THREE.Vector3(bomb.position.x, 1, bomb.position.z));
+      bomb.mesh.removeFromParent?.();
+      remoteBombs.splice(i, 1);
+    }
+  }
+  return positions;
+}
+
+// Mines: proximity detection
+interface MineData {
+  position: CANNON.Vec3;
+  mesh: THREE.Group;
+  armed: boolean;
+}
+
+const mines: MineData[] = [];
+
+export function placeMine(position: CANNON.Vec3, mesh: THREE.Group): void {
+  mines.push({ position: position.clone(), mesh, armed: false });
+}
+
+export function updateMines(dt: number): Array<{ position: CANNON.Vec3; mesh: THREE.Group }> {
+  const triggered: Array<{ position: CANNON.Vec3; mesh: THREE.Group }> = [];
+  const world = getWorld();
+
+  for (let i = mines.length - 1; i >= 0; i--) {
+    const mine = mines[i];
+
+    // Arm after 1s
+    if (!mine.armed) {
+      mine.armed = true;
+      continue;
+    }
+
+    let triggered_ = false;
+    for (const body of world.bodies) {
+      if (body.mass === 0) continue;
+      const dist = body.position.distanceTo(mine.position);
+      if (dist < 1.5) {
+        triggered_ = true;
+        break;
+      }
+    }
+
+    if (triggered_) {
+      applyExplosion({ position: mine.position, radius: MINE_RADIUS, baseForce: MINE_FORCE });
+      triggered.push({ position: mine.position, mesh: mine.mesh });
+      mines.splice(i, 1);
+    }
+  }
+
+  return triggered;
 }
