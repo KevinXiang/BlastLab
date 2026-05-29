@@ -65,3 +65,29 @@ export const EXPLOSIVE_DEFS: Record<string, ExplosiveDef> = {
   c4: { radius: 6, baseForce: 1200, color: 0x3366cc, label: 'C4' },
   nuke: { radius: 30, baseForce: 3000, color: 0xcc0000, label: '原子弹' },
 };
+
+// ============================================================
+// 武器库 — 新增爆炸类
+// ============================================================
+export const REMOTE_RADIUS = 6;
+export const REMOTE_FORCE = 1000;
+export const REMOTE_COLOR = 0x228833;
+
+export const MINE_RADIUS = 4;
+export const MINE_FORCE = 600;
+export const MINE_COLOR = 0x444444;
+
+// 特殊类
+export const INCENDIARY_RADIUS = 5;
+export const INCENDIARY_FORCE = 300;
+export const INCENDIARY_COLOR = 0xff6600;
+
+export const SMOKE_RADIUS = 6;
+export const SMOKE_COLOR = 0x888888;
+
+export const FLASH_RADIUS = 4;
+export const FLASH_COLOR = 0xffffff;
+
+// 建造类
+export const SANDBAG_COLOR = 0xc2b280;
+export const BARRICADE_COLOR = 0xff6600;
