@@ -112,6 +112,54 @@ export function createWeaponPanel(container: HTMLElement): WeaponPanelState {
     panel.appendChild(grid);
   }
 
+  // Action buttons
+  const btnContainer = document.createElement('div');
+  btnContainer.style.cssText = 'display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap;';
+
+  const detonateBtn = document.createElement('button');
+  detonateBtn.textContent = '引爆';
+  detonateBtn.style.cssText = `
+    flex: 1; padding: 10px 16px; background: #ff5722; color: #fff;
+    border: none; border-radius: 8px; font-size: 15px;
+    font-weight: bold; cursor: pointer;
+  `;
+  detonateBtn.addEventListener('click', () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+  });
+  btnContainer.appendChild(detonateBtn);
+
+  const resetBtn = document.createElement('button');
+  resetBtn.textContent = '重置';
+  resetBtn.style.cssText = `
+    flex: 1; padding: 10px 16px; background: #555; color: #fff;
+    border: none; border-radius: 8px; font-size: 14px;
+    cursor: pointer;
+  `;
+  resetBtn.addEventListener('click', () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
+  });
+  btnContainer.appendChild(resetBtn);
+
+  const modeBtn = document.createElement('button');
+  modeBtn.textContent = '沙盒';
+  modeBtn.style.cssText = `
+    flex: 1; padding: 8px 16px; background: #4caf50; color: #fff;
+    border: none; border-radius: 6px; cursor: pointer;
+    font-size: 13px;
+  `;
+  modeBtn.addEventListener('click', () => {
+    if (modeBtn.textContent === '沙盒') {
+      modeBtn.textContent = '关卡';
+      modeBtn.style.background = '#ff9800';
+    } else {
+      modeBtn.textContent = '沙盒';
+      modeBtn.style.background = '#4caf50';
+    }
+  });
+  btnContainer.appendChild(modeBtn);
+
+  panel.appendChild(btnContainer);
+
   container.appendChild(panel);
 
   tab.addEventListener('click', () => togglePanel(panel, tab, state));
