@@ -3,13 +3,13 @@ export const WORLD_SIZE = 60;
 export const GROUND_Y = 0;
 
 // 相机
-export const CAMERA_ZOOM = 12;
-export const CAMERA_MIN_ZOOM = 6;
-export const CAMERA_MAX_ZOOM = 25;
+export const CAMERA_ZOOM = 18;
+export const CAMERA_MIN_ZOOM = 8;
+export const CAMERA_MAX_ZOOM = 30;
 export const CAMERA_NEAR = 0.1;
 export const CAMERA_FAR = 200;
 export const CAMERA_ORBIT_DISTANCE = 30;
-export const CAMERA_ELEVATION = Math.PI / 3;
+export const CAMERA_ELEVATION = Math.PI / 2.3;
 export const CAMERA_ROTATE_SPEED = 1.8;
 export const CAMERA_ZOOM_SPEED = 6;
 export const CAMERA_DRAG_SENSITIVITY = 0.3;
