@@ -1,4 +1,4 @@
-import { getPhase, getLevelState, calcStars, getProgress, GamePhase } from './level';
+import { getPhase, getLevelState, calcStars, getProgress, GamePhase, LevelConfig, Objective } from './level';
 
 export interface UIState {
   selectedExplosive: string;
@@ -54,7 +54,8 @@ export function updateUI(container: HTMLElement, state: UIState): void {
       const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
       const progress = getProgress();
       const best = progress.records[ls.config.id]?.bestStars ?? 0;
-      levelInfoEl.textContent = `${ls.config.name} | 武器 ${remain}/${total} | ${timeStr} | 最高 ⭐${best}`;
+      const objText = formatObjectiveProgress(ls.config, ls.destroyedObjectIds);
+      levelInfoEl.innerHTML = `<div style="font-size:13px;">${ls.config.name} | ${objText} | ⏱ ${timeStr} | ⭐ ${best}</div>`;
     }
     if (scoreEl) scoreEl.style.display = 'none';
   } else {
@@ -131,4 +132,104 @@ export function showResultPopup(
 function hidePopup(popup: HTMLElement): void {
   popup.style.display = 'none';
   popup.innerHTML = '';
+}
+
+function formatObjectiveProgress(
+  config: LevelConfig,
+  destroyedIds: Set<number>,
+): string {
+  const parts = config.objectives.map((obj, i) => {
+    switch (obj.type) {
+      case 'destroy_targets': {
+        const done = obj.targetIds.filter(id => destroyedIds.has(id)).length;
+        const total = obj.targetIds.length;
+        return `🎯${done}/${total}`;
+      }
+      case 'destroy_count': {
+        const done = destroyedIds.size;
+        return `💥${Math.min(done, obj.count)}/${obj.count}`;
+      }
+      case 'clear_area': {
+        let remaining = 0;
+        for (let j = 0; j < config.buildings.length; j++) {
+          const b = config.buildings[j];
+          const dist = Math.sqrt((b.x - obj.center.x) ** 2 + (b.z - obj.center.z) ** 2);
+          if (dist <= obj.radius && !destroyedIds.has(j + 1)) {
+            remaining++;
+          }
+        }
+        return `🧹剩余${remaining}`;
+      }
+      default:
+        return '';
+    }
+  });
+  return parts.join(' ');
+}
+
+function formatObjective(obj: Objective): string {
+  switch (obj.type) {
+    case 'destroy_targets':
+      return `摧毁 ${obj.targetIds.length} 栋指定建筑`;
+    case 'destroy_count':
+      return `摧毁任意 ${obj.count} 个物体（建筑/车辆/树木）`;
+    case 'clear_area':
+      return `清空中心半径 ${obj.radius}m 区域内的所有建筑`;
+    default:
+      return '';
+  }
+}
+
+function starRulesText(parTime: number): string {
+  return `⭐×1 完成目标 | ⭐×1 节省≥30%武器 | ⭐×1 ${parTime * 0.6}s内完成`;
+}
+
+export function showLevelIntro(
+  container: HTMLElement,
+  config: LevelConfig,
+  onStart: () => void,
+): void {
+  const popup = container.querySelector<HTMLElement>('#result-popup');
+  if (!popup) return;
+
+  const weaponList = Object.entries(config.weapons)
+    .map(([k, v]) => `${k}×${v}`)
+    .join('、');
+
+  popup.innerHTML = `
+    <div style="background:#1a1a2e;padding:28px;border-radius:12px;text-align:center;color:#fff;min-width:340px;max-width:400px;">
+      <h2 style="margin:0 0 4px;color:#ff9800;">${config.name}</h2>
+      <p style="color:#aaa;font-size:13px;margin:0 0 16px;">第 ${config.id} 关</p>
+      <div style="background:rgba(255,255,255,0.05);padding:12px;border-radius:8px;margin-bottom:12px;text-align:left;">
+        <div style="font-size:12px;color:#888;margin-bottom:6px;">任务目标</div>
+        ${config.objectives.map((o, i) => `<div style="font-size:14px;margin-bottom:4px;">${i + 1}. ${formatObjective(o)}</div>`).join('')}
+      </div>
+      <div style="background:rgba(255,255,255,0.05);padding:12px;border-radius:8px;margin-bottom:12px;text-align:left;">
+        <div style="font-size:12px;color:#888;margin-bottom:6px;">可用武器</div>
+        <div style="font-size:14px;">${weaponList}</div>
+      </div>
+      ${config.restrictions?.length ? `
+        <div style="background:rgba(255,0,0,0.1);padding:12px;border-radius:8px;margin-bottom:12px;text-align:left;">
+          <div style="font-size:12px;color:#f44;margin-bottom:4px;">特殊规则</div>
+          ${config.restrictions.map(r => {
+            if (r.type === 'no_weapon') return `<div style="font-size:13px;">禁止使用: ${r.weapon}</div>`;
+            if (r.type === 'time_limit') return `<div style="font-size:13px;">时间限制: ${r.seconds}秒</div>`;
+            return '';
+          }).join('')}
+        </div>
+      ` : ''}
+      <div style="background:rgba(255,215,0,0.08);padding:12px;border-radius:8px;margin-bottom:16px;text-align:left;">
+        <div style="font-size:12px;color:#ffd700;margin-bottom:6px;">星级评定</div>
+        <div style="font-size:12px;color:#ccc;">${starRulesText(config.parTime)}</div>
+      </div>
+      <button id="btn-start-level" style="padding:12px 48px;background:#ff9800;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:16px;font-weight:bold;">开始挑战</button>
+    </div>
+  `;
+
+  popup.style.display = 'flex';
+
+  popup.querySelector('#btn-start-level')?.addEventListener('click', () => {
+    hidePopup(popup);
+    onStart();
+  });
 }

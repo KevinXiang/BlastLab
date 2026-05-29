@@ -5,7 +5,7 @@ import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives, c
 import { initPhysics, DebrisPiece } from './physics';
 import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives } from './game';
 import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect } from './effects';
-import { createUI, updateUI, showResultPopup } from './ui';
+import { createUI, updateUI, showResultPopup, showLevelIntro } from './ui';
 import { createInputState, setupInput } from './input';
 import { createWeaponPanel, WeaponPanelState } from './weaponpanel';
 import {
@@ -151,6 +151,9 @@ setDestroyCallback((type, id) => {
 
 window.addEventListener('level-start', ((e: CustomEvent) => {
   const id = e.detail.id;
+  const config = LEVELS.find(l => l.id === id);
+  if (!config) return;
+
   clearScene();
   for (const d of debrisList) {
     world.removeBody(d.body);
@@ -161,12 +164,13 @@ window.addEventListener('level-start', ((e: CustomEvent) => {
   debrisList.length = 0;
   resultPopupShown = false;
 
-  const config = startLevel(id);
-  if (config) {
-    buildFromLayout(config.buildings);
-    createVehicles();
-    createDecorations();
-  }
+  buildFromLayout(config.buildings);
+  createVehicles();
+  createDecorations();
+
+  showLevelIntro(container, config, () => {
+    startLevel(id);
+  });
 }) as EventListener);
 
 const debrisList: DebrisPiece[] = [];
