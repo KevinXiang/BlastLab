@@ -74,7 +74,7 @@ export function initRenderer(container: HTMLElement) {
   // === Distortion post-processing setup ===
   const w = container.clientWidth;
   const h = container.clientHeight;
-  renderTarget = new THREE.WebGLRenderTarget(w, h, { samples: 4 });
+  renderTarget = new THREE.WebGLRenderTarget(w, h);
 
   distortionUniforms = {
     tDiffuse: { value: null },
@@ -99,6 +99,11 @@ export function initRenderer(container: HTMLElement) {
       uniform float uIntensity;
       varying vec2 vUv;
 
+      vec3 acesApprox(vec3 v) {
+        v *= 1.2;
+        return (v * (2.51 * v + 0.03)) / (v * (2.43 * v + 0.59) + 0.14);
+      }
+
       void main() {
         vec2 uv = vUv;
         float dist = distance(uv, uCenter);
@@ -108,7 +113,9 @@ export function initRenderer(container: HTMLElement) {
           vec2 dir = normalize(uv - uCenter);
           uv -= dir * strength * 0.25;
         }
-        gl_FragColor = texture2D(tDiffuse, uv);
+        vec3 color = texture2D(tDiffuse, uv).rgb;
+        color = acesApprox(color);
+        gl_FragColor = vec4(color, 1.0);
       }
     `,
     depthTest: false,
