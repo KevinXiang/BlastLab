@@ -135,7 +135,8 @@ export function updateBlackHolePhysics(dt: number, scene: THREE.Scene): void {
     bh.elapsed += dt;
 
     if (bh.elapsed < BLACKHOLE_SUCK_DURATION) {
-      // Suck phase: pull ALL bodies toward center — no distance limit
+      // Suck phase: pull ALL bodies toward center
+      // Use applyForce (not applyImpulse) — frame-rate independent, accumulates in world.step()
       for (let j = world.bodies.length - 1; j >= 0; j--) {
         const body = world.bodies[j];
         if (body.mass === 0) continue;
@@ -145,12 +146,12 @@ export function updateBlackHolePhysics(dt: number, scene: THREE.Scene): void {
         const dz = bh.position.z - body.position.z;
         const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-        // Pull everything: force increases with distance to ensure distant objects reach core in time
-        const strength = 3000 + dist * 300;
-        const dir = new CANNON.Vec3(dx / Math.max(dist, 0.01), dy / Math.max(dist, 0.01), dz / Math.max(dist, 0.01));
-        body.applyImpulse(dir.scale(strength * dt), body.position);
+        const strength = 8000 + dist * 500;
+        const invDist = 1 / Math.max(dist, 0.01);
+        // Pull horizontally toward BH; lift slightly upward to overcome ground friction
+        const dir = new CANNON.Vec3(dx * invDist, Math.max(dy * invDist, 0.15), dz * invDist);
+        body.applyForce(dir.scale(strength), body.position);
 
-        // Destroy objects that reached the core
         if (dist < 2.5) {
           let wasBuilding = false;
           for (const pb of physicsBodies) {
@@ -174,12 +175,11 @@ export function updateBlackHolePhysics(dt: number, scene: THREE.Scene): void {
           scoreState.totalScore += wasBuilding ? 500 : 200;
         }
       }
-      // Passive scoring
       scoreState.totalScore += Math.floor(dt * 10);
     } else if (bh.elapsed < BLACKHOLE_SUCK_DURATION + 0.5) {
       // Charge phase
     } else {
-      // Eject: push ALL bodies outward — no distance limit
+      // Eject: push ALL bodies outward with upward lift
       for (const body of world.bodies) {
         if (body.mass === 0) continue;
         const dx = body.position.x - bh.position.x;
@@ -187,10 +187,10 @@ export function updateBlackHolePhysics(dt: number, scene: THREE.Scene): void {
         const dz = body.position.z - bh.position.z;
         const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (dist < 0.3) continue;
-        const strength = 8000 + dist * 200;
-        const dir = new CANNON.Vec3(dx / dist, dy / dist + 0.3, dz / dist);
-        dir.normalize();
-        body.applyImpulse(dir.scale(strength * dt * 2), body.position);
+        const strength = 12000 + dist * 400;
+        const invDist = 1 / Math.max(dist, 0.01);
+        const dir = new CANNON.Vec3(dx * invDist, Math.max(dy * invDist, 0.3), dz * invDist);
+        body.applyForce(dir.scale(strength), body.position);
       }
       activeBlackHoles.splice(i, 1);
       if (scoreState.totalScore > scoreState.highScore) {
