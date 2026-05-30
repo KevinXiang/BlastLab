@@ -2,8 +2,10 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { initRenderer, getCamera, getScene, renderWithDistortion, setBlackHoleDistortion } from './renderer';
 import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives, createSingleBuilding, createSingleVehicle, createSingleTree, createSandbag, createBarricade, createMineModel, createRemoteBombModel } from './scene';
+import { createStickman, StickmanState, updateStickman, damageStickman } from './stickman';
+import { createBarracks, BarracksState, updateBarracks, damageBarracks } from './barracks';
 import { initPhysics, DebrisPiece } from './physics';
-import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives, scoreState, loadHighScore, resetScore, addChainScore, updateBlackHolePhysics } from './game';
+import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives, scoreState, loadHighScore, resetScore, addChainScore, addStickmanKillScore, updateBlackHolePhysics } from './game';
 import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect, sprayFlameEffect, sprayIceEffect, sprayParticleEffect, getScreenFlash, igniteObject, activeBlackHoleStates } from './effects';
 import { createUI, updateUI, showFloatText } from './ui';
 import { createInputState, setupInput } from './input';
@@ -139,6 +141,22 @@ window.addEventListener('game-reset', () => {
   clearRemoteBombs();
   clearMines();
   resetScore();
+  for (const sm of stickmen) {
+    scene.remove(sm.group);
+    sm.group.traverse((c) => {
+      if (c instanceof THREE.Mesh) { c.geometry.dispose(); (c.material as THREE.Material).dispose(); }
+    });
+    world.removeBody(sm.body);
+  }
+  stickmen.length = 0;
+  for (const b of barracksList) {
+    scene.remove(b.group);
+    b.group.traverse((c) => {
+      if (c instanceof THREE.Mesh) { c.geometry.dispose(); (c.material as THREE.Material).dispose(); }
+    });
+    world.removeBody(b.body);
+  }
+  barracksList.length = 0;
   for (const d of debrisList) {
     world.removeBody(d.body);
     scene.remove(d.mesh);
@@ -149,6 +167,8 @@ window.addEventListener('game-reset', () => {
 });
 
 const debrisList: DebrisPiece[] = [];
+const stickmen: StickmanState[] = [];
+const barracksList: BarracksState[] = [];
 let lastTime = performance.now();
 
 let placedCount = 0;
@@ -198,6 +218,12 @@ function placeItem(type: string, x: number, z: number): void {
     case 'tree': createSingleTree(x, z); break;
     case 'sandbag': createSandbag(x, z); break;
     case 'barricade': createBarricade(x, z); break;
+    case 'barracks': {
+      const b = createBarracks(x, z);
+      barracksList.push(b);
+      physicsBodies.push({ body: b.body, mesh: b.group, isBuilding: true });
+      break;
+    }
   }
 }
 
@@ -380,6 +406,37 @@ function animate() {
 
   // Black hole physics
   updateBlackHolePhysics(dt, scene);
+
+  // Stickman AI + Barracks
+  const dangerSources = activeBlackHoleStates.map(bh => ({
+    pos: new THREE.Vector3(bh.worldPos.x, bh.worldPos.y, bh.worldPos.z),
+    radius: 25,
+  }));
+  for (const sm of stickmen) {
+    if (!sm.alive) continue;
+    updateStickman(sm, dt, dangerSources);
+    if (sm.body.velocity.length() > 15) {
+      const killed = damageStickman(sm, sm.body.velocity.length() * 5 * dt);
+      if (killed) addStickmanKillScore();
+    }
+  }
+  for (const b of barracksList) {
+    if (!b.alive) continue;
+    const spawned = updateBarracks(b, dt, stickmen);
+    for (const sm of spawned) stickmen.push(sm);
+  }
+  // Clean dead stickmen
+  for (let i = stickmen.length - 1; i >= 0; i--) {
+    const sm = stickmen[i];
+    if (!sm.alive) {
+      scene.remove(sm.group);
+      sm.group.traverse((c) => {
+        if (c instanceof THREE.Mesh) { c.geometry.dispose(); (c.material as THREE.Material).dispose(); }
+      });
+      world.removeBody(sm.body);
+      stickmen.splice(i, 1);
+    }
+  }
 
   // Panel toggle
   if (input.togglePanel) {
