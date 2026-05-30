@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { getScene } from './renderer';
 import { getWorld } from './physics';
-import { BARRACKS_HP, BARRACKS_SPAWN_RATE, BARRACKS_MAX_UNITS } from './constants';
+import { BARRACKS_HP, BARRACKS_SPAWN_RATE } from './constants';
 import { createStickman, StickmanState } from './stickman';
 
 export interface BarracksState {
@@ -69,7 +69,7 @@ export function createBarracks(x: number, z: number): BarracksState {
   return {
     group, body, hp: BARRACKS_HP, maxHp: BARRACKS_HP,
     spawnRate: BARRACKS_SPAWN_RATE, spawnTimer: 0,
-    maxUnits: BARRACKS_MAX_UNITS, alive: true,
+    maxUnits: Infinity, alive: true,
   };
 }
 

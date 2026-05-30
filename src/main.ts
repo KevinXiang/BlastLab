@@ -99,7 +99,10 @@ function handleClick(): void {
   const type = panelState.selectedType || uiState.selectedExplosive;
 
   // Spray weapons are handled continuously in animate(), not on click
-  if (isSprayType(type)) return;
+  if (isSprayType(type)) {
+    input.mouseDown = false;
+    return;
+  }
 
   mouse.x = (input.mouseX / container.clientWidth) * 2 - 1;
   mouse.y = -(input.mouseY / container.clientHeight) * 2 + 1;
