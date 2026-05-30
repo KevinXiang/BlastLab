@@ -138,3 +138,19 @@ export const SPRAY_PARTICLE_ENERGY = 3;
 export const SPRAY_PARTICLE_FORCE = 500;
 
 export const SPRAY_CONE_ANGLE = Math.PI / 6;
+
+// ============================================================
+// 火柴人 & 兵营
+// ============================================================
+export const STICKMAN_HP = 100;
+export const STICKMAN_WALK_SPEED = 2;
+export const STICKMAN_RUN_SPEED = 5;
+export const STICKMAN_FEAR_RADIUS = 8;
+export const STICKMAN_FEAR_DURATION = 3;
+export const STICKMAN_SCORE = 100;
+export const STICKMAN_HEIGHT = 1.8;
+export const STICKMAN_RADIUS = 0.25;
+
+export const BARRACKS_HP = 300;
+export const BARRACKS_SPAWN_RATE = 2;
+export const BARRACKS_MAX_UNITS = 20;
