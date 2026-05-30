@@ -7,7 +7,7 @@ import { createBarracks, BarracksState, updateBarracks, damageBarracks } from '.
 import { initPhysics, DebrisPiece } from './physics';
 import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives, scoreState, loadHighScore, resetScore, addChainScore, addStickmanKillScore, updateBlackHolePhysics } from './game';
 import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect, sprayFlameEffect, sprayIceEffect, sprayParticleEffect, getScreenFlash, igniteObject, activeBlackHoleStates } from './effects';
-import { createUI, updateUI, showFloatText } from './ui';
+import { createUI, updateUI, showFloatText, updateStickmanCount } from './ui';
 import { createInputState, setupInput } from './input';
 import { createWeaponPanel, WeaponPanelState } from './weaponpanel';
 import {
@@ -440,6 +440,7 @@ function animate() {
       stickmen.splice(i, 1);
     }
   }
+  updateStickmanCount(stickmen.length);
 
   // Panel toggle
   if (input.togglePanel) {

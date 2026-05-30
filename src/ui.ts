@@ -16,7 +16,10 @@ export function createUI(container: HTMLElement): UIState {
     font-size: 14px; z-index: 10; pointer-events: none;
   `;
   topBar.innerHTML = `
-    <span id="explosive-info">TNT</span>
+    <span style="display:flex;gap:20px;">
+      <span id="explosive-info">TNT</span>
+      <span id="stickman-count" style="color:#ff9800;display:none;">👤 0</span>
+    </span>
     <span id="score-display" style="font-size:16px;">
       总分: <span id="total-score" style="color:#ffd700;font-size:20px;">0</span>
       &nbsp;🏆 最高: <span id="high-score" style="color:#ff9800;">0</span>
@@ -44,6 +47,17 @@ export function updateUI(container: HTMLElement, state: UIState): void {
 
   const highEl = container.querySelector<HTMLElement>('#high-score');
   if (highEl) highEl.textContent = String(scoreState.highScore);
+}
+
+export function updateStickmanCount(count: number): void {
+  const el = document.querySelector<HTMLElement>('#stickman-count');
+  if (!el) return;
+  if (count > 0) {
+    el.style.display = '';
+    el.textContent = `👤 ${count}`;
+  } else {
+    el.style.display = 'none';
+  }
 }
 
 export function showFloatText(
