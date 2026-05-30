@@ -145,13 +145,13 @@ export function updateBlackHolePhysics(dt: number, scene: THREE.Scene): void {
         const dz = bh.position.z - body.position.z;
         const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-        // Pull everything
-        const strength = 12000 / (1 + dist * dist * 0.3);
+        // Pull everything: force increases with distance to ensure distant objects reach core in time
+        const strength = 3000 + dist * 300;
         const dir = new CANNON.Vec3(dx / Math.max(dist, 0.01), dy / Math.max(dist, 0.01), dz / Math.max(dist, 0.01));
         body.applyImpulse(dir.scale(strength * dt), body.position);
 
         // Destroy objects that reached the core
-        if (dist < 1.5) {
+        if (dist < 2.5) {
           let wasBuilding = false;
           for (const pb of physicsBodies) {
             if (pb.body === body) {
@@ -187,7 +187,7 @@ export function updateBlackHolePhysics(dt: number, scene: THREE.Scene): void {
         const dz = body.position.z - bh.position.z;
         const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (dist < 0.3) continue;
-        const strength = 10000 / (1 + dist * 0.3);
+        const strength = 8000 + dist * 200;
         const dir = new CANNON.Vec3(dx / dist, dy / dist + 0.3, dz / dist);
         dir.normalize();
         body.applyImpulse(dir.scale(strength * dt * 2), body.position);
