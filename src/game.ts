@@ -10,7 +10,7 @@ import {
   spawnBlackHoleEffect,
   spawnEMPEffect,
 } from './effects';
-import { BLACKHOLE_SUCK_DURATION } from './constants';
+import { BLACKHOLE_SUCK_DURATION, STICKMAN_SCORE } from './constants';
 import { EXPLOSIVE_DEFS, ExplosiveDef, REMOTE_RADIUS, REMOTE_FORCE, MINE_RADIUS, MINE_FORCE } from './constants';
 import { getScene } from './renderer';
 import { physicsBodies } from './scene';
@@ -363,4 +363,12 @@ export function clearMines(): void {
 
 export function clearPlacedExplosives(): void {
   placedExplosives.length = 0;
+}
+
+export function addStickmanKillScore(): void {
+  scoreState.totalScore += STICKMAN_SCORE;
+  if (scoreState.totalScore > scoreState.highScore) {
+    scoreState.highScore = scoreState.totalScore;
+    saveHighScore();
+  }
 }
