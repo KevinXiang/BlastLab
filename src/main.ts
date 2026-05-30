@@ -224,7 +224,7 @@ function placeItem(type: string, x: number, z: number): void {
     case 'barracks': {
       const b = createBarracks(x, z);
       barracksList.push(b);
-      physicsBodies.push({ body: b.body, mesh: b.group, isBuilding: true });
+      physicsBodies.push({ body: b.body, mesh: b.group, isBuilding: false });
       break;
     }
   }
