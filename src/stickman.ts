@@ -4,8 +4,12 @@ import { getScene } from './renderer';
 import { getWorld } from './physics';
 import {
   STICKMAN_HP, STICKMAN_WALK_SPEED, STICKMAN_RUN_SPEED,
-  STICKMAN_FEAR_RADIUS, STICKMAN_FEAR_DURATION,
   STICKMAN_HEIGHT, STICKMAN_RADIUS,
+  ANIM_WALK_FREQ, ANIM_RUN_FREQ,
+  ANIM_WALK_AMP, ANIM_RUN_AMP,
+  ANIM_ARM_AMP, ANIM_ARM_RUN_AMP,
+  ANIM_BOB_HEIGHT, ANIM_BOB_RUN_HEIGHT,
+  STICKMAN_ACCEL, STICKMAN_RUN_ACCEL, STICKMAN_TURN_SPEED,
 } from './constants';
 
 export interface StickmanState {
@@ -14,10 +18,12 @@ export interface StickmanState {
   hp: number;
   maxHp: number;
   state: 'idle' | 'walking' | 'fleeing';
-  fearTimer: number;
-  walkTarget: THREE.Vector3;
-  idleTimer: number;
   alive: boolean;
+  partRefs: Map<string, THREE.Object3D>;
+  animTime: number;
+  animPhase: number;
+  deathTimer: number;
+  isDeadReadyCleanup: boolean;
 }
 
 export function createStickman(x: number, z: number, hp?: number): StickmanState {
@@ -33,6 +39,7 @@ export function createStickman(x: number, z: number, hp?: number): StickmanState
   const head = new THREE.Mesh(headGeo, headMat);
   head.position.y = STICKMAN_HEIGHT - 0.15;
   head.castShadow = true;
+  head.userData.name = 'head';
   group.add(head);
 
   // Body
@@ -41,6 +48,8 @@ export function createStickman(x: number, z: number, hp?: number): StickmanState
   const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
   bodyMesh.position.y = STICKMAN_HEIGHT - 0.5;
   bodyMesh.castShadow = true;
+  bodyMesh.userData.name = 'body';
+  bodyMesh.userData.baseY = STICKMAN_HEIGHT - 0.5;
   group.add(bodyMesh);
 
   // Arms
@@ -51,12 +60,14 @@ export function createStickman(x: number, z: number, hp?: number): StickmanState
   leftArm.position.set(-0.18, STICKMAN_HEIGHT - 0.45, 0);
   leftArm.rotation.z = 0.3;
   leftArm.castShadow = true;
+  leftArm.userData.name = 'leftArm';
   group.add(leftArm);
 
   const rightArm = new THREE.Mesh(armGeo, armMat);
   rightArm.position.set(0.18, STICKMAN_HEIGHT - 0.45, 0);
   rightArm.rotation.z = -0.3;
   rightArm.castShadow = true;
+  rightArm.userData.name = 'rightArm';
   group.add(rightArm);
 
   // Legs
@@ -66,12 +77,20 @@ export function createStickman(x: number, z: number, hp?: number): StickmanState
   const leftLeg = new THREE.Mesh(legGeo, legMat);
   leftLeg.position.set(-0.08, STICKMAN_HEIGHT - 1.1, 0);
   leftLeg.castShadow = true;
+  leftLeg.userData.name = 'leftLeg';
   group.add(leftLeg);
 
   const rightLeg = new THREE.Mesh(legGeo, legMat);
   rightLeg.position.set(0.08, STICKMAN_HEIGHT - 1.1, 0);
   rightLeg.castShadow = true;
+  rightLeg.userData.name = 'rightLeg';
   group.add(rightLeg);
+
+  // Build part refs map
+  const partRefs = new Map<string, THREE.Object3D>();
+  group.traverse((c) => {
+    if (c.userData.name) partRefs.set(c.userData.name as string, c);
+  });
 
   group.position.set(x, 0, z);
   scene.add(group);
@@ -86,10 +105,13 @@ export function createStickman(x: number, z: number, hp?: number): StickmanState
 
   return {
     group, body, hp: maxHp, maxHp,
-    state: 'idle', fearTimer: 0,
-    walkTarget: new THREE.Vector3(x, 0, z),
-    idleTimer: Math.random() * 2,
+    state: 'idle',
     alive: true,
+    partRefs,
+    animTime: 0,
+    animPhase: Math.random() * Math.PI * 2,
+    deathTimer: 0,
+    isDeadReadyCleanup: false,
   };
 }
 
@@ -107,79 +129,118 @@ export function damageStickman(sm: StickmanState, amount: number): boolean {
   });
   if (sm.hp <= 0) {
     sm.alive = false;
+    sm.deathTimer = 0.5;
+    // Reset limb rotations for death
+    const { partRefs } = sm;
+    if (partRefs) {
+      for (const part of partRefs.values()) {
+        if (part.userData.name !== 'head' && part.userData.name !== 'body') {
+          part.rotation.x = 0;
+        }
+      }
+    }
     return true;
   }
   return false;
 }
 
-export function updateStickman(
+export function updateStickmanDeath(sm: StickmanState, dt: number): void {
+  if (sm.alive || sm.deathTimer <= 0) return;
+  sm.deathTimer -= dt;
+  sm.body.angularDamping = 0.1;
+  if (sm.deathTimer <= 0) {
+    sm.isDeadReadyCleanup = true;
+  }
+}
+
+export function updateStickmanAnimation(sm: StickmanState, dt: number, speed: number): void {
+  const { partRefs } = sm;
+  if (!partRefs || partRefs.size === 0) return;
+
+  const leftLeg = partRefs.get('leftLeg');
+  const rightLeg = partRefs.get('rightLeg');
+  const leftArm = partRefs.get('leftArm');
+  const rightArm = partRefs.get('rightArm');
+  const bodyMesh = partRefs.get('body');
+
+  const isMoving = speed > 0.1;
+
+  if (!sm.alive) {
+    if (leftLeg) leftLeg.rotation.x = 0;
+    if (rightLeg) rightLeg.rotation.x = 0;
+    if (leftArm) leftArm.rotation.x = 0;
+    if (rightArm) rightArm.rotation.x = 0;
+    return;
+  }
+
+  sm.animTime += dt * Math.max(speed / STICKMAN_WALK_SPEED, 0.2) * ANIM_WALK_FREQ;
+
+  if (isMoving) {
+    const isRunning = sm.state === 'fleeing';
+    const legAmp = isRunning ? ANIM_RUN_AMP : ANIM_WALK_AMP;
+    const armAmp = isRunning ? ANIM_ARM_RUN_AMP : ANIM_ARM_AMP;
+    const bobHeight = isRunning ? ANIM_BOB_RUN_HEIGHT : ANIM_BOB_HEIGHT;
+    const cycle = sm.animTime + sm.animPhase;
+
+    if (leftLeg) leftLeg.rotation.x = Math.sin(cycle) * legAmp;
+    if (rightLeg) rightLeg.rotation.x = Math.sin(cycle + Math.PI) * legAmp;
+    if (leftArm) leftArm.rotation.x = Math.sin(cycle + Math.PI) * armAmp;
+    if (rightArm) rightArm.rotation.x = Math.sin(cycle) * armAmp;
+
+    if (bodyMesh) {
+      const baseY = bodyMesh.userData.baseY as number;
+      if (baseY !== undefined) {
+        bodyMesh.position.y = baseY + Math.abs(Math.sin(cycle * 2)) * bobHeight;
+      }
+    }
+  } else {
+    const sway = Math.sin(sm.animTime * 2) * 0.02;
+    if (leftLeg) leftLeg.rotation.x = sway;
+    if (rightLeg) rightLeg.rotation.x = -sway;
+    if (leftArm) leftArm.rotation.x = sway * 0.5;
+    if (rightArm) rightArm.rotation.x = -sway * 0.5;
+    if (bodyMesh) {
+      const baseY = bodyMesh.userData.baseY as number;
+      if (baseY !== undefined) {
+        bodyMesh.position.y += (baseY - bodyMesh.position.y) * 0.1;
+      }
+    }
+  }
+}
+
+export function updateStickmanMotion(
   sm: StickmanState,
+  targetDir: THREE.Vector3,
+  targetSpeed: number,
   dt: number,
-  dangerSources: Array<{ pos: THREE.Vector3; radius: number }>,
 ): void {
   if (!sm.alive) return;
 
-  const pos = new THREE.Vector3(sm.body.position.x, sm.body.position.y, sm.body.position.z);
+  const hasTarget = targetSpeed > 0.01 && targetDir.length() > 0.01;
+  const accel = sm.state === 'fleeing' ? STICKMAN_RUN_ACCEL : STICKMAN_ACCEL;
+  const t = 1 - Math.exp(-accel * dt * 2);
 
-  // Check for danger
-  let nearestDanger = Infinity;
-  let dangerDir = new THREE.Vector3();
-  for (const d of dangerSources) {
-    const dist = pos.distanceTo(d.pos);
-    if (dist < d.radius + STICKMAN_FEAR_RADIUS && dist < nearestDanger) {
-      nearestDanger = dist;
-      dangerDir = pos.clone().sub(d.pos).normalize();
-    }
-  }
-
-  if (nearestDanger < Infinity) {
-    sm.state = 'fleeing';
-    sm.fearTimer = STICKMAN_FEAR_DURATION;
-  } else if (sm.fearTimer > 0) {
-    sm.fearTimer -= dt;
-    if (sm.fearTimer <= 0) {
-      sm.state = 'idle';
-      sm.idleTimer = 1 + Math.random() * 2;
-    }
-  }
-
-  // Movement
-  let speed = 0;
-  let moveDir = new THREE.Vector3();
-
-  if (sm.state === 'fleeing') {
-    speed = STICKMAN_RUN_SPEED;
-    moveDir = dangerDir;
-  } else if (sm.state === 'walking') {
-    speed = STICKMAN_WALK_SPEED;
-    const toTarget = sm.walkTarget.clone().sub(pos);
-    const dist = toTarget.length();
-    if (dist < 0.3) {
-      sm.state = 'idle';
-      sm.idleTimer = 1 + Math.random() * 3;
-    } else {
-      moveDir = toTarget.normalize();
-    }
+  if (hasTarget) {
+    sm.body.velocity.x += (targetDir.x * targetSpeed - sm.body.velocity.x) * t;
+    sm.body.velocity.z += (targetDir.z * targetSpeed - sm.body.velocity.z) * t;
   } else {
-    sm.idleTimer -= dt;
-    if (sm.idleTimer <= 0) {
-      sm.state = 'walking';
-      const angle = Math.random() * Math.PI * 2;
-      const dist = 3 + Math.random() * 8;
-      sm.walkTarget.set(pos.x + Math.cos(angle) * dist, 0, pos.z + Math.sin(angle) * dist);
-    }
+    sm.body.velocity.x *= 1 - t;
+    sm.body.velocity.z *= 1 - t;
   }
 
-  if (speed > 0 && moveDir.length() > 0.01) {
-    sm.body.velocity.x = moveDir.x * speed;
-    sm.body.velocity.z = moveDir.z * speed;
-    sm.group.rotation.y = Math.atan2(moveDir.x, moveDir.z);
-  } else {
-    sm.body.velocity.x *= 0.9;
-    sm.body.velocity.z *= 0.9;
+  if (hasTarget) {
+    const targetAngle = Math.atan2(targetDir.x, targetDir.z);
+    let diff = targetAngle - sm.group.rotation.y;
+    diff = ((diff + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    const maxTurn = STICKMAN_TURN_SPEED * dt;
+    diff = Math.max(-maxTurn, Math.min(maxTurn, diff));
+    sm.group.rotation.y += diff;
   }
 
-  // Sync mesh to physics
+  sm.body.velocity.x *= 0.95;
+  sm.body.velocity.z *= 0.95;
+  sm.body.angularVelocity.set(0, 0, 0);
+
   sm.group.position.copy(sm.body.position as any);
   sm.group.position.y -= STICKMAN_HEIGHT / 2;
   sm.group.quaternion.copy(sm.body.quaternion as any);

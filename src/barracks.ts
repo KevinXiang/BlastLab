@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { getScene } from './renderer';
 import { getWorld } from './physics';
-import { BARRACKS_HP, BARRACKS_SPAWN_RATE } from './constants';
+import { BARRACKS_HP, BARRACKS_SPAWN_RATE, MORALE_INITIAL, MORALE_LOW_THRESHOLD, MORALE_HIGH_THRESHOLD } from './constants';
 import { createStickman, StickmanState } from './stickman';
 
 export interface BarracksState {
@@ -14,6 +14,8 @@ export interface BarracksState {
   spawnTimer: number;
   maxUnits: number;
   alive: boolean;
+  morale: number;
+  lastMoraleEventTime: number;
 }
 
 export function createBarracks(x: number, z: number): BarracksState {
@@ -70,6 +72,8 @@ export function createBarracks(x: number, z: number): BarracksState {
     group, body, hp: BARRACKS_HP, maxHp: BARRACKS_HP,
     spawnRate: BARRACKS_SPAWN_RATE, spawnTimer: 0,
     maxUnits: Infinity, alive: true,
+    morale: MORALE_INITIAL,
+    lastMoraleEventTime: 0,
   };
 }
 
@@ -92,8 +96,15 @@ export function updateBarracks(
   const spawned: StickmanState[] = [];
   barracks.spawnTimer += dt;
 
+  let effectiveRate = barracks.spawnRate;
+  if (barracks.morale < MORALE_LOW_THRESHOLD) {
+    effectiveRate = barracks.spawnRate * 2;
+  } else if (barracks.morale > MORALE_HIGH_THRESHOLD) {
+    effectiveRate = barracks.spawnRate * 0.67;
+  }
+
   const aliveCount = activeStickmen.filter(s => s.alive).length;
-  if (barracks.spawnTimer >= barracks.spawnRate && aliveCount < barracks.maxUnits) {
+  if (barracks.spawnTimer >= effectiveRate && aliveCount < barracks.maxUnits) {
     barracks.spawnTimer = 0;
     const angle = Math.random() * Math.PI * 2;
     const dist = 1 + Math.random() * 2;

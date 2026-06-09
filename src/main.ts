@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { initRenderer, getCamera, getScene, renderWithDistortion, setBlackHoleDistortion } from './renderer';
 import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives, createSingleBuilding, createSingleVehicle, createSingleTree, createSandbag, createBarricade, createMineModel, createRemoteBombModel } from './scene';
-import { createStickman, StickmanState, updateStickman, damageStickman } from './stickman';
+import { createStickman, StickmanState, updateStickmanMotion, updateStickmanAnimation, updateStickmanDeath, damageStickman } from './stickman';
 import { createBarracks, BarracksState, updateBarracks, damageBarracks } from './barracks';
+import { createAIState, AIState, updateStickmanAI, preUpdateAI, MoraleEvent, rebuildOccupancyGrid, setDynamicObstacles } from './stickman_ai';
 import { initPhysics, DebrisPiece } from './physics';
 import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives, scoreState, loadHighScore, resetScore, addChainScore, addStickmanKillScore, updateBlackHolePhysics } from './game';
 import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect, sprayFlameEffect, sprayIceEffect, sprayParticleEffect, getScreenFlash, igniteObject, activeBlackHoleStates } from './effects';
@@ -26,6 +27,8 @@ const { camera, renderer, scene } = initRenderer(container);
 const world = initPhysics();
 
 createScene();
+
+rebuildOccupancyGrid(physicsBodies);
 
 loadHighScore();
 
@@ -152,6 +155,7 @@ window.addEventListener('game-reset', () => {
     world.removeBody(sm.body);
   }
   stickmen.length = 0;
+  aiStates.length = 0;
   for (const b of barracksList) {
     scene.remove(b.group);
     b.group.traverse((c) => {
@@ -171,6 +175,8 @@ window.addEventListener('game-reset', () => {
 
 const debrisList: DebrisPiece[] = [];
 const stickmen: StickmanState[] = [];
+const aiStates: AIState[] = [];
+const moraleEvents: MoraleEvent[] = [];
 const barracksList: BarracksState[] = [];
 let lastTime = performance.now();
 
@@ -410,34 +416,66 @@ function animate() {
   // Black hole physics
   updateBlackHolePhysics(dt, scene);
 
-  // Stickman AI + Barracks
-  const dangerSources = activeBlackHoleStates.map(bh => ({
+  const nowSec = performance.now() / 1000;
+
+  const dynamicObs = activeBlackHoleStates.map(bh => ({
     pos: new THREE.Vector3(bh.worldPos.x, bh.worldPos.y, bh.worldPos.z),
     radius: 25,
   }));
+  setDynamicObstacles(dynamicObs);
+
+  // 0. Death updates (before alive check)
   for (const sm of stickmen) {
-    if (!sm.alive) continue;
-    updateStickman(sm, dt, dangerSources);
-    if (sm.body.velocity.length() > 15) {
-      const killed = damageStickman(sm, sm.body.velocity.length() * 5 * dt);
-      if (killed) addStickmanKillScore();
-    }
+    updateStickmanDeath(sm, dt);
   }
+
+  // 1. AI preprocessing — morale events, fear propagation, grid rebuild
+  preUpdateAI(dt, aiStates, barracksList, moraleEvents, physicsBodies, nowSec);
+
+  // 2. AI update + motion + animation
+  for (const smAI of aiStates) {
+    if (!smAI.stickman.alive && smAI.stickman.deathTimer <= 0) continue;
+    if (smAI.stickman.alive) {
+      updateStickmanAI(smAI, dt, aiStates);
+      updateStickmanMotion(smAI.stickman, smAI.moveDir, smAI.moveSpeed, dt);
+      if (smAI.stickman.body.velocity.length() > 15) {
+        const killed = damageStickman(smAI.stickman, smAI.stickman.body.velocity.length() * 5 * dt);
+        if (killed) {
+          addStickmanKillScore();
+          moraleEvents.push({
+            type: 'stickman_death',
+            pos: new THREE.Vector3(
+              smAI.stickman.body.position.x, 0, smAI.stickman.body.position.z,
+            ),
+            stickman: smAI.stickman,
+          });
+        }
+      }
+    }
+    updateStickmanAnimation(smAI.stickman, dt, smAI.moveSpeed);
+  }
+
+  // 3. Barracks spawn (morale affects rate)
   for (const b of barracksList) {
     if (!b.alive) continue;
     const spawned = updateBarracks(b, dt, stickmen);
-    for (const sm of spawned) stickmen.push(sm);
+    for (const sm of spawned) {
+      stickmen.push(sm);
+      aiStates.push(createAIState(sm, b));
+    }
   }
-  // Clean dead stickmen
+
+  // 4. Cleanup dead stickmen
   for (let i = stickmen.length - 1; i >= 0; i--) {
     const sm = stickmen[i];
-    if (!sm.alive) {
+    if (!sm.alive && sm.isDeadReadyCleanup) {
       scene.remove(sm.group);
       sm.group.traverse((c) => {
         if (c instanceof THREE.Mesh) { c.geometry.dispose(); (c.material as THREE.Material).dispose(); }
       });
       world.removeBody(sm.body);
       stickmen.splice(i, 1);
+      aiStates.splice(i, 1);
     }
   }
   updateStickmanCount(stickmen.length);
