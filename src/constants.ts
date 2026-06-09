@@ -145,8 +145,6 @@ export const SPRAY_CONE_ANGLE = Math.PI / 6;
 export const STICKMAN_HP = 100;
 export const STICKMAN_WALK_SPEED = 2;
 export const STICKMAN_RUN_SPEED = 5;
-export const STICKMAN_FEAR_RADIUS = 8;
-export const STICKMAN_FEAR_DURATION = 3;
 export const STICKMAN_SCORE = 100;
 export const STICKMAN_HEIGHT = 1.8;
 export const STICKMAN_RADIUS = 0.25;
@@ -154,3 +152,56 @@ export const STICKMAN_RADIUS = 0.25;
 export const BARRACKS_HP = 300;
 export const BARRACKS_SPAWN_RATE = 2;
 export const BARRACKS_MAX_UNITS = 20;
+
+// ============================================================
+// 火柴人动画
+// ============================================================
+export const ANIM_WALK_FREQ = 8;
+export const ANIM_RUN_FREQ = 12;
+export const ANIM_WALK_AMP = 0.5;
+export const ANIM_RUN_AMP = 0.7;
+export const ANIM_ARM_AMP = 0.4;
+export const ANIM_ARM_RUN_AMP = 0.6;
+export const ANIM_BOB_HEIGHT = 0.03;
+export const ANIM_BOB_RUN_HEIGHT = 0.05;
+
+// ============================================================
+// 火柴人运动
+// ============================================================
+export const STICKMAN_ACCEL = 8;
+export const STICKMAN_RUN_ACCEL = 15;
+export const STICKMAN_TURN_SPEED = 8;
+export const STICKMAN_ROAD_SPEED_BONUS = 1.2;
+
+// ============================================================
+// 火柴人 AI
+// ============================================================
+export const AI_PATH_RECALC_INTERVAL = 3;
+export const AI_GRID_RESOLUTION = 2;
+export const AI_MAX_SEARCH_STEPS = 200;
+export const AI_SEPARATION_RADIUS = 3;
+export const AI_SEPARATION_WEIGHT = 0.3;
+export const AI_COHESION_RADIUS = 5;
+export const AI_COHESION_WEIGHT = 0.2;
+
+// ============================================================
+// 士气
+// ============================================================
+export const FEAR_EXPLOSION = 60;
+export const FEAR_WITNESS_DEATH = 20;
+export const FEAR_WITNESS_FLEE = 10;
+export const FEAR_DECAY_RATE = 5;
+export const FEAR_NEAR_BARRACKS_DECAY = 10;
+export const FEAR_NEAR_ALLIES_DECAY = 5;
+export const FEAR_FLEE_THRESHOLD = 70;
+export const FEAR_RECOVER_THRESHOLD = 20;
+export const FEAR_PROPAGATION_RADIUS = 5;
+export const FEAR_PROPAGATION_COOLDOWN = 3;
+export const MORALE_INITIAL = 50;
+export const MORALE_DEATH_PENALTY = 10;
+export const MORALE_BARRACKS_DAMAGE = 30;
+export const MORALE_EXPLOSION_NEAR = 20;
+export const MORALE_KILL_BONUS = 15;
+export const MORALE_LOW_THRESHOLD = 30;
+export const MORALE_HIGH_THRESHOLD = 70;
+export const MORALE_COOLDOWN = 30;
