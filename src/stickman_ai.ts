@@ -18,6 +18,12 @@ import {
   MORALE_LOW_THRESHOLD, MORALE_HIGH_THRESHOLD,
   MORALE_COOLDOWN,
   WORLD_SIZE, ROAD_WIDTH,
+  COMBAT_SCAN_RADIUS, COMBAT_SCAN_INTERVAL,
+  COMBAT_RANGED_RANGE, COMBAT_MELEE_RANGE,
+  COMBAT_LOSE_TARGET_RANGE,
+  COMBAT_RANGED_COOLDOWN, COMBAT_MELEE_COOLDOWN,
+  COMBAT_RANGED_DAMAGE, COMBAT_MELEE_DAMAGE,
+  PROJECTILE_SPEED, PROJECTILE_LIFETIME,
 } from './constants';
 
 // ============================================================
@@ -37,6 +43,9 @@ export interface AIState {
   lastFearPropagationTime: number;
   moveDir: THREE.Vector3;
   moveSpeed: number;
+  combatTarget: AIState | null;
+  combatScanTimer: number;
+  attackCooldown: number;
 }
 
 export type MoraleEvent =
@@ -44,6 +53,18 @@ export type MoraleEvent =
   | { type: 'stickman_death'; pos: THREE.Vector3; stickman: StickmanState }
   | { type: 'enemy_kill'; pos: THREE.Vector3 }
   | { type: 'barracks_damage'; barracks: BarracksState };
+
+export interface Projectile {
+  pos: THREE.Vector3;
+  dir: THREE.Vector3;
+  speed: number;
+  faction: 'red' | 'blue';
+  damage: number;
+  lifetime: number;
+  mesh: THREE.Mesh;
+}
+
+const projectiles: Projectile[] = [];
 
 // ============================================================
 // Occupancy Grid
@@ -490,6 +511,135 @@ export function processMoraleEvents(
 }
 
 // ============================================================
+// Projectile System
+// ============================================================
+
+export function updateProjectiles(dt: number, aiStates: AIState[], scene: THREE.Scene): void {
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.pos.x += p.dir.x * p.speed * dt;
+    p.pos.y += p.dir.y * p.speed * dt;
+    p.pos.z += p.dir.z * p.speed * dt;
+    p.mesh.position.copy(p.pos);
+    p.lifetime -= dt;
+
+    let hit = false;
+    for (const target of aiStates) {
+      if (!target.stickman.alive) continue;
+      if (target.stickman.faction === p.faction) continue;
+      const tp = target.stickman.body.position;
+      const dx = p.pos.x - tp.x;
+      const dy = p.pos.y - (tp.y + 0.5);
+      const dz = p.pos.z - tp.z;
+      if (dx * dx + dy * dy + dz * dz < 0.25) {
+        target.stickman.hp = Math.max(0, target.stickman.hp - p.damage);
+        if (target.stickman.hp <= 0) target.stickman.alive = false;
+        hit = true;
+        break;
+      }
+    }
+
+    if (hit || p.lifetime <= 0) {
+      scene.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      (p.mesh.material as THREE.Material).dispose();
+      projectiles.splice(i, 1);
+    }
+  }
+}
+
+export function spawnProjectile(
+  origin: THREE.Vector3, dir: THREE.Vector3,
+  faction: 'red' | 'blue', damage: number, scene: THREE.Scene,
+): void {
+  const geo = new THREE.SphereGeometry(0.08, 4, 4);
+  const mat = new THREE.MeshBasicMaterial({ color: faction === 'red' ? 0xff4444 : 0x4488ff });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(origin);
+  scene.add(mesh);
+
+  projectiles.push({
+    pos: origin.clone(),
+    dir: dir.clone().normalize(),
+    speed: PROJECTILE_SPEED,
+    faction, damage,
+    lifetime: PROJECTILE_LIFETIME,
+    mesh,
+  });
+}
+
+// ============================================================
+// Combat AI
+// ============================================================
+
+export function updateCombatAI(
+  smAI: AIState, dt: number, aiStates: AIState[], scene: THREE.Scene,
+): void {
+  const sm = smAI.stickman;
+  if (!sm.alive || sm.state === 'fleeing') {
+    smAI.combatTarget = null;
+    return;
+  }
+
+  smAI.attackCooldown = Math.max(0, smAI.attackCooldown - dt);
+  smAI.combatScanTimer -= dt;
+
+  // Validate current target
+  if (smAI.combatTarget) {
+    const ts = smAI.combatTarget.stickman;
+    if (!ts.alive || ts.faction === sm.faction) {
+      smAI.combatTarget = null;
+    } else {
+      const tp = ts.body.position;
+      const dist = Math.hypot(sm.body.position.x - tp.x, sm.body.position.z - tp.z);
+      if (dist > COMBAT_LOSE_TARGET_RANGE) smAI.combatTarget = null;
+    }
+  }
+
+  // Scan for new target
+  if (!smAI.combatTarget && smAI.combatScanTimer <= 0) {
+    smAI.combatScanTimer = COMBAT_SCAN_INTERVAL;
+    const enemies = aiStates.filter(other =>
+      other !== smAI && other.stickman.alive &&
+      other.stickman.faction !== sm.faction &&
+      Math.hypot(sm.body.position.x - other.stickman.body.position.x, sm.body.position.z - other.stickman.body.position.z) <= COMBAT_SCAN_RADIUS,
+    );
+    if (enemies.length > 0) {
+      smAI.combatTarget = enemies[Math.floor(Math.random() * enemies.length)];
+    }
+  }
+
+  if (!smAI.combatTarget) return;
+
+  const tp = smAI.combatTarget.stickman.body.position;
+  const dist = Math.hypot(sm.body.position.x - tp.x, sm.body.position.z - tp.z);
+
+  if (dist < COMBAT_MELEE_RANGE) {
+    sm.state = 'combat_melee';
+  } else if (dist <= COMBAT_RANGED_RANGE) {
+    sm.state = 'combat_ranged';
+  } else {
+    sm.state = 'walking';
+    smAI.targetPos = new THREE.Vector3(tp.x, 0, tp.z);
+    smAI.pathWaypoints = [];
+  }
+
+  // Execute attack
+  if (sm.state === 'combat_melee' && smAI.attackCooldown <= 0) {
+    smAI.attackCooldown = COMBAT_MELEE_COOLDOWN;
+    smAI.combatTarget.stickman.hp = Math.max(0, smAI.combatTarget.stickman.hp - COMBAT_MELEE_DAMAGE);
+    if (smAI.combatTarget.stickman.hp <= 0) smAI.combatTarget.stickman.alive = false;
+    sm.attackAnimTimer = 0.15;
+  } else if (sm.state === 'combat_ranged' && smAI.attackCooldown <= 0) {
+    smAI.attackCooldown = COMBAT_RANGED_COOLDOWN;
+    const origin = new THREE.Vector3(sm.body.position.x, sm.body.position.y + 0.5, sm.body.position.z);
+    const dir = new THREE.Vector3(tp.x - origin.x, tp.y - origin.y, tp.z - origin.z);
+    spawnProjectile(origin, dir, sm.faction, COMBAT_RANGED_DAMAGE, scene);
+    sm.attackAnimTimer = 0.15;
+  }
+}
+
+// ============================================================
 // Pre-update & AI update
 // ============================================================
 
@@ -526,6 +676,7 @@ export function updateStickmanAI(smAI: AIState, dt: number, aiStates: AIState[])
   if (smAI.fear > FEAR_FLEE_THRESHOLD) {
     sm.state = 'fleeing';
     smAI.fearTimer = 3;
+    smAI.combatTarget = null;
   } else if (sm.state === 'fleeing' && smAI.fear < FEAR_RECOVER_THRESHOLD) {
     smAI.fearTimer -= dt;
     if (smAI.fearTimer <= 0) {
@@ -599,5 +750,8 @@ export function createAIState(sm: StickmanState, barracks: BarracksState | null)
     lastFearPropagationTime: 0,
     moveDir: new THREE.Vector3(),
     moveSpeed: 0,
+    combatTarget: null,
+    combatScanTimer: Math.random() * COMBAT_SCAN_INTERVAL,
+    attackCooldown: 0,
   };
 }

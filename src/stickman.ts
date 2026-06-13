@@ -17,8 +17,11 @@ export interface StickmanState {
   body: CANNON.Body;
   hp: number;
   maxHp: number;
-  state: 'idle' | 'walking' | 'fleeing';
+  state: 'idle' | 'walking' | 'fleeing' | 'combat_melee' | 'combat_ranged';
   alive: boolean;
+  faction: 'red' | 'blue';
+  healthBar: { bg: THREE.Mesh; fill: THREE.Mesh } | null;
+  attackAnimTimer: number;
   partRefs: Map<string, THREE.Object3D>;
   animTime: number;
   animPhase: number;
@@ -26,10 +29,11 @@ export interface StickmanState {
   isDeadReadyCleanup: boolean;
 }
 
-export function createStickman(x: number, z: number, hp?: number): StickmanState {
+export function createStickman(x: number, z: number, faction: 'red' | 'blue', hp?: number): StickmanState {
   const scene = getScene();
   const world = getWorld();
   const maxHp = hp ?? STICKMAN_HP;
+  const bodyColor = faction === 'red' ? 0xcc3333 : 0x3366cc;
 
   const group = new THREE.Group();
 
@@ -44,7 +48,7 @@ export function createStickman(x: number, z: number, hp?: number): StickmanState
 
   // Body
   const bodyGeo = new THREE.CylinderGeometry(0.1, 0.12, 0.6, 6);
-  const bodyMat = new THREE.MeshToonMaterial({ color: 0x3366cc });
+  const bodyMat = new THREE.MeshToonMaterial({ color: bodyColor });
   const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
   bodyMesh.position.y = STICKMAN_HEIGHT - 0.5;
   bodyMesh.castShadow = true;
@@ -86,6 +90,22 @@ export function createStickman(x: number, z: number, hp?: number): StickmanState
   rightLeg.userData.name = 'rightLeg';
   group.add(rightLeg);
 
+  // Health bar (billboard)
+  const barBgGeo = new THREE.PlaneGeometry(0.6, 0.06);
+  const barBgMat = new THREE.MeshBasicMaterial({ color: 0x333333, transparent: true, opacity: 0.7, depthTest: false });
+  const barBg = new THREE.Mesh(barBgGeo, barBgMat);
+  barBg.position.y = STICKMAN_HEIGHT + 0.25;
+  barBg.renderOrder = 999;
+
+  const barFillGeo = new THREE.PlaneGeometry(0.58, 0.04);
+  const barFillMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, depthTest: false });
+  const barFill = new THREE.Mesh(barFillGeo, barFillMat);
+  barFill.position.z = 0.002;
+  barFill.renderOrder = 1000;
+
+  barBg.add(barFill);
+  group.add(barBg);
+
   // Build part refs map
   const partRefs = new Map<string, THREE.Object3D>();
   group.traverse((c) => {
@@ -107,6 +127,9 @@ export function createStickman(x: number, z: number, hp?: number): StickmanState
     group, body, hp: maxHp, maxHp,
     state: 'idle',
     alive: true,
+    faction,
+    healthBar: { bg: barBg, fill: barFill },
+    attackAnimTimer: 0,
     partRefs,
     animTime: 0,
     animPhase: Math.random() * Math.PI * 2,
@@ -118,9 +141,19 @@ export function createStickman(x: number, z: number, hp?: number): StickmanState
 export function damageStickman(sm: StickmanState, amount: number): boolean {
   if (!sm.alive) return false;
   sm.hp -= amount;
+
+  // Update health bar
+  if (sm.healthBar) {
+    const pct = Math.max(0, sm.hp / sm.maxHp);
+    sm.healthBar.fill.scale.x = Math.max(0.01, pct);
+    const r = pct < 0.5 ? 1 : 2 * (1 - pct);
+    const g = pct > 0.5 ? 1 : 2 * pct;
+    (sm.healthBar.fill.material as THREE.MeshBasicMaterial).color.setRGB(r, g, 0);
+  }
+
   // Flash red briefly
   sm.group.traverse((c) => {
-    if (c instanceof THREE.Mesh) {
+    if (c instanceof THREE.Mesh && (c.material as THREE.MeshToonMaterial).color) {
       const mat = c.material as THREE.MeshToonMaterial;
       const orig = mat.color.getHex();
       mat.color.setHex(0xff0000);
@@ -130,7 +163,6 @@ export function damageStickman(sm: StickmanState, amount: number): boolean {
   if (sm.hp <= 0) {
     sm.alive = false;
     sm.deathTimer = 0.5;
-    // Reset limb rotations for death
     const { partRefs } = sm;
     if (partRefs) {
       for (const part of partRefs.values()) {
@@ -142,6 +174,10 @@ export function damageStickman(sm: StickmanState, amount: number): boolean {
     return true;
   }
   return false;
+}
+
+export function triggerAttackAnim(sm: StickmanState, _isMelee: boolean): void {
+  sm.attackAnimTimer = 0.15;
 }
 
 export function updateStickmanDeath(sm: StickmanState, dt: number): void {
@@ -164,6 +200,8 @@ export function updateStickmanAnimation(sm: StickmanState, dt: number, speed: nu
   const bodyMesh = partRefs.get('body');
 
   const isMoving = speed > 0.1;
+  const isAttacking = sm.attackAnimTimer > 0;
+  if (isAttacking) sm.attackAnimTimer -= dt;
 
   if (!sm.alive) {
     if (leftLeg) leftLeg.rotation.x = 0;
@@ -206,6 +244,12 @@ export function updateStickmanAnimation(sm: StickmanState, dt: number, speed: nu
       }
     }
   }
+
+  // Combat attack punch
+  if (isAttacking && rightArm) {
+    const t = sm.attackAnimTimer / 0.15;
+    rightArm.rotation.x = -0.8 * Math.sin(t * Math.PI);
+  }
 }
 
 export function updateStickmanMotion(
@@ -245,11 +289,14 @@ export function updateStickmanMotion(
   sm.group.position.y -= STICKMAN_HEIGHT / 2;
   sm.group.quaternion.copy(sm.body.quaternion as any);
 
-  // Keep upright
   const q = sm.body.quaternion;
   if (Math.abs(q.x) > 0.1 || Math.abs(q.z) > 0.1) {
     q.x *= 0.9;
     q.z *= 0.9;
     q.normalize();
+  }
+
+  if (sm.healthBar) {
+    sm.healthBar.bg.visible = sm.alive && sm.deathTimer <= 0;
   }
 }

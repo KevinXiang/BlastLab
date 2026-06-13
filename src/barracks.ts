@@ -14,13 +14,17 @@ export interface BarracksState {
   spawnTimer: number;
   maxUnits: number;
   alive: boolean;
+  faction: 'red' | 'blue';
   morale: number;
   lastMoraleEventTime: number;
 }
 
-export function createBarracks(x: number, z: number): BarracksState {
+export function createBarracks(x: number, z: number, faction: 'red' | 'blue'): BarracksState {
   const scene = getScene();
   const world = getWorld();
+
+  const tentColor = faction === 'red' ? 0x883333 : 0x334488;
+  const flagColor = faction === 'red' ? 0xff4444 : 0x4488ff;
 
   const group = new THREE.Group();
 
@@ -34,7 +38,7 @@ export function createBarracks(x: number, z: number): BarracksState {
 
   // Tent
   const tentGeo = new THREE.ConeGeometry(0.5, 1.2, 4);
-  const tentMat = new THREE.MeshToonMaterial({ color: 0x668844 });
+  const tentMat = new THREE.MeshToonMaterial({ color: tentColor });
   const tent = new THREE.Mesh(tentGeo, tentMat);
   tent.position.y = 0.8;
   tent.rotation.y = Math.PI / 4;
@@ -51,7 +55,7 @@ export function createBarracks(x: number, z: number): BarracksState {
 
   // Flag
   const flagGeo = new THREE.PlaneGeometry(0.3, 0.2);
-  const flagMat = new THREE.MeshToonMaterial({ color: 0xff4444, side: THREE.DoubleSide });
+  const flagMat = new THREE.MeshToonMaterial({ color: flagColor, side: THREE.DoubleSide });
   const flag = new THREE.Mesh(flagGeo, flagMat);
   flag.position.set(0.15, 1.9, 0);
   flag.castShadow = true;
@@ -69,9 +73,11 @@ export function createBarracks(x: number, z: number): BarracksState {
   world.addBody(body);
 
   return {
-    group, body, hp: BARRACKS_HP, maxHp: BARRACKS_HP,
+    group, body,
+    hp: BARRACKS_HP, maxHp: BARRACKS_HP,
     spawnRate: BARRACKS_SPAWN_RATE, spawnTimer: 0,
     maxUnits: Infinity, alive: true,
+    faction,
     morale: MORALE_INITIAL,
     lastMoraleEventTime: 0,
   };
@@ -110,7 +116,7 @@ export function updateBarracks(
     const dist = 1 + Math.random() * 2;
     const sx = barracks.body.position.x + Math.cos(angle) * dist;
     const sz = barracks.body.position.z + Math.sin(angle) * dist;
-    const sm = createStickman(sx, sz);
+    const sm = createStickman(sx, sz, barracks.faction);
     spawned.push(sm);
   }
 

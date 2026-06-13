@@ -4,7 +4,7 @@ import { initRenderer, getCamera, getScene, renderWithDistortion, setBlackHoleDi
 import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives, createSingleBuilding, createSingleVehicle, createSingleTree, createSandbag, createBarricade, createMineModel, createRemoteBombModel } from './scene';
 import { createStickman, StickmanState, updateStickmanMotion, updateStickmanAnimation, updateStickmanDeath, damageStickman } from './stickman';
 import { createBarracks, BarracksState, updateBarracks, damageBarracks } from './barracks';
-import { createAIState, AIState, updateStickmanAI, preUpdateAI, MoraleEvent, rebuildOccupancyGrid, setDynamicObstacles } from './stickman_ai';
+import { createAIState, AIState, updateStickmanAI, updateCombatAI, preUpdateAI, MoraleEvent, rebuildOccupancyGrid, setDynamicObstacles, updateProjectiles } from './stickman_ai';
 import { initPhysics, DebrisPiece } from './physics';
 import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives, scoreState, loadHighScore, resetScore, addChainScore, addStickmanKillScore, updateBlackHolePhysics } from './game';
 import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect, sprayFlameEffect, sprayIceEffect, sprayParticleEffect, getScreenFlash, igniteObject, activeBlackHoleStates } from './effects';
@@ -227,8 +227,14 @@ function placeItem(type: string, x: number, z: number): void {
     case 'tree': createSingleTree(x, z); break;
     case 'sandbag': createSandbag(x, z); break;
     case 'barricade': createBarricade(x, z); break;
-    case 'barracks': {
-      const b = createBarracks(x, z);
+    case 'barracks_red': {
+      const b = createBarracks(x, z, 'red');
+      barracksList.push(b);
+      physicsBodies.push({ body: b.body, mesh: b.group, isBuilding: false });
+      break;
+    }
+    case 'barracks_blue': {
+      const b = createBarracks(x, z, 'blue');
       barracksList.push(b);
       physicsBodies.push({ body: b.body, mesh: b.group, isBuilding: false });
       break;
@@ -437,6 +443,7 @@ function animate() {
     if (!smAI.stickman.alive && smAI.stickman.deathTimer <= 0) continue;
     if (smAI.stickman.alive) {
       updateStickmanAI(smAI, dt, aiStates);
+      updateCombatAI(smAI, dt, aiStates, scene);
       updateStickmanMotion(smAI.stickman, smAI.moveDir, smAI.moveSpeed, dt);
       if (smAI.stickman.body.velocity.length() > 15) {
         const killed = damageStickman(smAI.stickman, smAI.stickman.body.velocity.length() * 5 * dt);
@@ -478,6 +485,16 @@ function animate() {
       aiStates.splice(i, 1);
     }
   }
+  updateProjectiles(dt, aiStates, scene);
+
+  // Billboard health bars
+  const cam = getCamera();
+  for (const sm of stickmen) {
+    if (sm.healthBar && sm.alive && sm.deathTimer <= 0) {
+      sm.healthBar.bg.lookAt(cam.position);
+    }
+  }
+
   updateStickmanCount(stickmen.length);
 
   // Panel toggle

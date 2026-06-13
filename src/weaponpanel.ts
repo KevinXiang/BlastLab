@@ -34,7 +34,8 @@ const WEAPONS: WeaponDef[] = [
   { type: 'tree', label: '树木', icon: '🌳', category: 'construct' },
   { type: 'sandbag', label: '沙袋', icon: '🛡️', category: 'construct' },
   { type: 'barricade', label: '路障', icon: '🚧', category: 'construct' },
-  { type: 'barracks', label: '兵营', icon: '🏕️', category: 'construct' },
+  { type: 'barracks_red', label: '红方兵营', icon: '🟥', category: 'construct' },
+{ type: 'barracks_blue', label: '蓝方兵营', icon: '🟦', category: 'construct' },
 ];
 
 export interface WeaponPanelState {

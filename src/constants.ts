@@ -205,3 +205,18 @@ export const MORALE_KILL_BONUS = 15;
 export const MORALE_LOW_THRESHOLD = 30;
 export const MORALE_HIGH_THRESHOLD = 70;
 export const MORALE_COOLDOWN = 30;
+
+// ============================================================
+// 战斗
+// ============================================================
+export const COMBAT_SCAN_RADIUS = 12;
+export const COMBAT_SCAN_INTERVAL = 1;
+export const COMBAT_RANGED_RANGE = 8;
+export const COMBAT_MELEE_RANGE = 2;
+export const COMBAT_LOSE_TARGET_RANGE = 15;
+export const COMBAT_RANGED_COOLDOWN = 1.5;
+export const COMBAT_MELEE_COOLDOWN = 0.8;
+export const COMBAT_RANGED_DAMAGE = 15;
+export const COMBAT_MELEE_DAMAGE = 10;
+export const PROJECTILE_SPEED = 15;
+export const PROJECTILE_LIFETIME = 2;
