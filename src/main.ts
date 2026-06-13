@@ -8,7 +8,7 @@ import { createAIState, AIState, updateStickmanAI, updateCombatAI, preUpdateAI, 
 import { initPhysics, DebrisPiece } from './physics';
 import { placeExplosive, detonateAll, getPlacedExplosives, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives, scoreState, loadHighScore, resetScore, addChainScore, addStickmanKillScore, updateBlackHolePhysics } from './game';
 import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect, sprayFlameEffect, sprayIceEffect, sprayParticleEffect, getScreenFlash, igniteObject, activeBlackHoleStates } from './effects';
-import { createUI, updateUI, showFloatText, updateStickmanCount } from './ui';
+import { createUI, updateUI, showFloatText, updateStickmanStats } from './ui';
 import { createInputState, setupInput } from './input';
 import { createWeaponPanel, WeaponPanelState } from './weaponpanel';
 import {
@@ -496,7 +496,18 @@ function animate() {
     }
   }
 
-  updateStickmanCount(stickmen.length);
+  // Stickman stats
+  let redAlive = 0, redTotal = 0, blueAlive = 0, blueTotal = 0;
+  for (const sm of stickmen) {
+    if (sm.faction === 'red') { redTotal++; if (sm.alive) redAlive++; }
+    else { blueTotal++; if (sm.alive) blueAlive++; }
+  }
+  updateStickmanStats({
+    total: stickmen.length,
+    alive: redAlive + blueAlive,
+    redTotal, redAlive,
+    blueTotal, blueAlive,
+  });
 
   // Panel toggle
   if (input.togglePanel) {

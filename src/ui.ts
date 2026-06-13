@@ -4,6 +4,15 @@ export interface UIState {
   selectedExplosive: string;
 }
 
+export interface StickmanStats {
+  alive: number;
+  total: number;
+  redAlive: number;
+  redTotal: number;
+  blueAlive: number;
+  blueTotal: number;
+}
+
 export function createUI(container: HTMLElement): UIState {
   const state: UIState = { selectedExplosive: 'tnt' };
 
@@ -16,9 +25,9 @@ export function createUI(container: HTMLElement): UIState {
     font-size: 14px; z-index: 10; pointer-events: none;
   `;
   topBar.innerHTML = `
-    <span style="display:flex;gap:20px;">
+    <span style="display:flex;gap:20px;align-items:center;">
       <span id="explosive-info">TNT</span>
-      <span id="stickman-count" style="color:#ff9800;display:none;">👤 0</span>
+      <span id="stickman-stats" style="display:none;gap:8px;align-items:center;"></span>
     </span>
     <span id="score-display" style="font-size:16px;">
       总分: <span id="total-score" style="color:#ffd700;font-size:20px;">0</span>
@@ -49,15 +58,24 @@ export function updateUI(container: HTMLElement, state: UIState): void {
   if (highEl) highEl.textContent = String(scoreState.highScore);
 }
 
-export function updateStickmanCount(count: number): void {
-  const el = document.querySelector<HTMLElement>('#stickman-count');
+export function updateStickmanStats(stats: StickmanStats): void {
+  const el = document.querySelector<HTMLElement>('#stickman-stats');
   if (!el) return;
-  if (count > 0) {
-    el.style.display = '';
-    el.textContent = `👤 ${count}`;
-  } else {
+
+  if (stats.total === 0) {
     el.style.display = 'none';
+    return;
   }
+
+  el.style.display = 'flex';
+  el.innerHTML = [
+    `<span title="总数">⚔️ ${stats.total}</span>`,
+    `<span title="存活" style="color:#4caf50;">👤 ${stats.alive}</span>`,
+    `<span title="红方总数" style="color:#ff6666;">🟥 ${stats.redTotal}</span>`,
+    `<span title="红方存活" style="color:#ff4444;">❤️ ${stats.redAlive}</span>`,
+    `<span title="蓝方总数" style="color:#6666ff;">🟦 ${stats.blueTotal}</span>`,
+    `<span title="蓝方存活" style="color:#4488ff;">💙 ${stats.blueAlive}</span>`,
+  ].join('');
 }
 
 export function showFloatText(
