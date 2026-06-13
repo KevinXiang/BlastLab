@@ -11,6 +11,8 @@ export interface StickmanStats {
   redTotal: number;
   blueAlive: number;
   blueTotal: number;
+  redDead: number;
+  blueDead: number;
   winner: 'red' | 'blue' | 'draw' | 'none';
 }
 
@@ -48,6 +50,39 @@ export function createUI(container: HTMLElement): UIState {
   return state;
 }
 
+export function createFireRateSlider(container: HTMLElement, onChange: (rate: number) => void): void {
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = `
+    position: absolute; top: 44px; right: 16px;
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(0,0,0,0.6); color: #fff;
+    padding: 4px 10px; border-radius: 6px;
+    font-size: 12px; z-index: 10;
+  `;
+  const label = document.createElement('span');
+  label.textContent = '射速:';
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.min = '1';
+  slider.max = '200';
+  slider.value = '10';
+  slider.style.cssText = 'width:100px;cursor:pointer;';
+  const valDisplay = document.createElement('span');
+  valDisplay.textContent = '10/s';
+  valDisplay.style.minWidth = '40px';
+
+  slider.addEventListener('input', () => {
+    const v = parseInt(slider.value);
+    valDisplay.textContent = `${v}/s`;
+    onChange(v);
+  });
+
+  wrapper.appendChild(label);
+  wrapper.appendChild(slider);
+  wrapper.appendChild(valDisplay);
+  container.appendChild(wrapper);
+}
+
 export function updateUI(container: HTMLElement, state: UIState): void {
   const infoEl = container.querySelector<HTMLElement>('#explosive-info');
   if (infoEl) infoEl.textContent = `当前: ${state.selectedExplosive.toUpperCase()}`;
@@ -81,6 +116,8 @@ export function updateStickmanStats(stats: StickmanStats): void {
     `<span title="红方存活" style="color:#ff4444;">❤️ ${stats.redAlive}</span>`,
     `<span title="蓝方总数" style="color:#6666ff;">🟦 ${stats.blueTotal}</span>`,
     `<span title="蓝方存活" style="color:#4488ff;">💙 ${stats.blueAlive}</span>`,
+    `<span title="红方死亡" style="color:#ff3333;">💀 ${stats.redDead}</span>`,
+    `<span title="蓝方死亡" style="color:#3333ff;">💀 ${stats.blueDead}</span>`,
     winnerHtml,
   ].filter(Boolean).join('');
 }

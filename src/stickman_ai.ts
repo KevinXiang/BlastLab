@@ -26,6 +26,11 @@ import {
   PROJECTILE_SPEED, PROJECTILE_LIFETIME,
 } from './constants';
 
+let rangedCooldown = COMBAT_RANGED_COOLDOWN;
+export function setRangedFireRate(shotsPerSecond: number): void {
+  rangedCooldown = 1 / Math.max(1, shotsPerSecond);
+}
+
 // ============================================================
 // Types
 // ============================================================
@@ -631,7 +636,7 @@ export function updateCombatAI(
     damageStickman(smAI.combatTarget.stickman, COMBAT_MELEE_DAMAGE, 'combat');
     sm.attackAnimTimer = 0.15;
   } else if (sm.state === 'combat_ranged' && smAI.attackCooldown <= 0) {
-    smAI.attackCooldown = COMBAT_RANGED_COOLDOWN;
+    smAI.attackCooldown = rangedCooldown;
     const origin = new THREE.Vector3(sm.body.position.x, sm.body.position.y + 0.5, sm.body.position.z);
     const dir = new THREE.Vector3(tp.x - origin.x, tp.y - origin.y, tp.z - origin.z);
     spawnProjectile(origin, dir, sm.faction, COMBAT_RANGED_DAMAGE, scene);

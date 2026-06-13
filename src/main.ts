@@ -4,11 +4,11 @@ import { initRenderer, getCamera, getScene, renderWithDistortion, setBlackHoleDi
 import { createScene, physicsBodies, createExplosiveMesh, removeAllExplosives, createSingleBuilding, createSingleVehicle, createSingleTree, createSandbag, createBarricade, createMineModel, createRemoteBombModel } from './scene';
 import { createStickman, StickmanState, updateStickmanMotion, updateStickmanAnimation, updateStickmanDeath, damageStickman } from './stickman';
 import { createBarracks, BarracksState, updateBarracks, damageBarracks } from './barracks';
-import { createAIState, AIState, updateStickmanAI, updateCombatAI, preUpdateAI, MoraleEvent, rebuildOccupancyGrid, setDynamicObstacles, updateProjectiles } from './stickman_ai';
+import { createAIState, AIState, updateStickmanAI, updateCombatAI, preUpdateAI, MoraleEvent, rebuildOccupancyGrid, setDynamicObstacles, updateProjectiles, setRangedFireRate } from './stickman_ai';
 import { initPhysics, DebrisPiece } from './physics';
 import { placeExplosive, detonateAll, getPlacedExplosives, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives, scoreState, loadHighScore, resetScore, addChainScore, addStickmanKillScore, updateBlackHolePhysics } from './game';
 import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect, sprayFlameEffect, sprayIceEffect, sprayParticleEffect, getScreenFlash, igniteObject, activeBlackHoleStates } from './effects';
-import { createUI, updateUI, showFloatText, updateStickmanStats } from './ui';
+import { createUI, updateUI, showFloatText, updateStickmanStats, createFireRateSlider } from './ui';
 import { createInputState, setupInput } from './input';
 import { createWeaponPanel, WeaponPanelState } from './weaponpanel';
 import {
@@ -37,6 +37,7 @@ const input = createInputState();
 setupInput(input, renderer.domElement);
 
 const uiState = createUI(container);
+createFireRateSlider(container, setRangedFireRate);
 const panelState = createWeaponPanel(container);
 
 let cameraAngle = Math.PI / 4;
@@ -509,8 +510,9 @@ function animate() {
   updateStickmanStats({
     total: stickmen.length,
     alive: redAlive + blueAlive,
-    redTotal, redAlive,
-    blueTotal, blueAlive,
+    redTotal, redAlive, blueTotal, blueAlive,
+    redDead: redTotal - redAlive,
+    blueDead: blueTotal - blueAlive,
     winner,
   });
 
