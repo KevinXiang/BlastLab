@@ -30,6 +30,7 @@ export interface AIState {
   fear: number;
   fearTimer: number;
   targetPos: THREE.Vector3;
+  dangerPos: THREE.Vector3;
   idleTimer: number;
   pathWaypoints: THREE.Vector3[];
   pathRecalcTimer: number;
@@ -438,6 +439,7 @@ export function processMoraleEvents(
           );
           if (pos.distanceTo(event.pos) < event.radius) {
             smAI.fear = Math.min(100, smAI.fear + FEAR_EXPLOSION);
+            smAI.dangerPos.copy(event.pos);
           }
         }
         for (const b of barracksList) {
@@ -561,8 +563,9 @@ export function updateStickmanAI(smAI: AIState, dt: number, aiStates: AIState[])
       const bp = smAI.barracks.body.position;
       smAI.targetPos = new THREE.Vector3(bp.x, 0, bp.z);
     } else {
+      // Flee away from danger position
       const fleeDir = new THREE.Vector3(
-        pos.x - smAI.targetPos.x, 0, pos.z - smAI.targetPos.z,
+        pos.x - smAI.dangerPos.x, 0, pos.z - smAI.dangerPos.z,
       ).normalize();
       if (fleeDir.length() < 0.01) {
         fleeDir.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
@@ -589,6 +592,7 @@ export function createAIState(sm: StickmanState, barracks: BarracksState | null)
     fear: barracks && barracks.morale < MORALE_LOW_THRESHOLD ? 20 : 0,
     fearTimer: 0,
     targetPos: new THREE.Vector3(sm.body.position.x, 0, sm.body.position.z),
+    dangerPos: new THREE.Vector3(sm.body.position.x, 0, sm.body.position.z),
     idleTimer: Math.random() * 2,
     pathWaypoints: [],
     pathRecalcTimer: 0,
