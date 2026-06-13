@@ -6,7 +6,7 @@ import { createStickman, StickmanState, updateStickmanMotion, updateStickmanAnim
 import { createBarracks, BarracksState, updateBarracks, damageBarracks } from './barracks';
 import { createAIState, AIState, updateStickmanAI, updateCombatAI, preUpdateAI, MoraleEvent, rebuildOccupancyGrid, setDynamicObstacles, updateProjectiles } from './stickman_ai';
 import { initPhysics, DebrisPiece } from './physics';
-import { placeExplosive, detonateAll, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives, scoreState, loadHighScore, resetScore, addChainScore, addStickmanKillScore, updateBlackHolePhysics } from './game';
+import { placeExplosive, detonateAll, getPlacedExplosives, placeRemoteBomb, detonateGroup, updateMines, placeMine, clearRemoteBombs, clearMines, clearPlacedExplosives, scoreState, loadHighScore, resetScore, addChainScore, addStickmanKillScore, updateBlackHolePhysics } from './game';
 import { updateEffects, spawnIncendiaryEffect, spawnSmokeEffect, spawnFlashEffect, spawnTntEffect, sprayFlameEffect, sprayIceEffect, sprayParticleEffect, getScreenFlash, igniteObject, activeBlackHoleStates } from './effects';
 import { createUI, updateUI, showFloatText, updateStickmanCount } from './ui';
 import { createInputState, setupInput } from './input';
@@ -19,6 +19,7 @@ import {
   SPRAY_FLAME_RANGE, SPRAY_FLAME_FORCE,
   SPRAY_ICE_RANGE, SPRAY_ICE_SLOW_FACTOR,
   SPRAY_PARTICLE_RANGE, SPRAY_PARTICLE_FORCE,
+  REMOTE_RADIUS,
 } from './constants';
 
 const container = document.getElementById('app')!;
@@ -506,15 +507,24 @@ function animate() {
 
   // Remote detonation groups
   if (input.detonateGroup1) {
-    for (const p of detonateGroup(0)) spawnTntEffect(p);
+    for (const p of detonateGroup(0)) {
+      moraleEvents.push({ type: 'explosion', pos: new THREE.Vector3(p.x, 0, p.z), radius: REMOTE_RADIUS });
+      spawnTntEffect(p);
+    }
     input.detonateGroup1 = false;
   }
   if (input.detonateGroup2) {
-    for (const p of detonateGroup(1)) spawnTntEffect(p);
+    for (const p of detonateGroup(1)) {
+      moraleEvents.push({ type: 'explosion', pos: new THREE.Vector3(p.x, 0, p.z), radius: REMOTE_RADIUS });
+      spawnTntEffect(p);
+    }
     input.detonateGroup2 = false;
   }
   if (input.detonateGroup3) {
-    for (const p of detonateGroup(2)) spawnTntEffect(p);
+    for (const p of detonateGroup(2)) {
+      moraleEvents.push({ type: 'explosion', pos: new THREE.Vector3(p.x, 0, p.z), radius: REMOTE_RADIUS });
+      spawnTntEffect(p);
+    }
     input.detonateGroup3 = false;
   }
 
@@ -529,6 +539,14 @@ function animate() {
   }
 
   if (input.detonate) {
+    // Push explosion morale events for stickman damage
+    for (const exp of getPlacedExplosives()) {
+      moraleEvents.push({
+        type: 'explosion',
+        pos: new THREE.Vector3(exp.position.x, 0, exp.position.z),
+        radius: exp.def.radius,
+      });
+    }
     detonateAll(physicsBodies, debrisList, scene);
     removeAllExplosives();
     if (scoreState.lastScore && scoreState.lastScorePosition) {

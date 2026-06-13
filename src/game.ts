@@ -65,6 +65,7 @@ interface PlacedExplosiveData {
 }
 
 let placedExplosives: PlacedExplosiveData[] = [];
+export function getPlacedExplosives(): PlacedExplosiveData[] { return placedExplosives; }
 const FRAGMENT_THRESHOLD = 300;
 
 export function placeExplosive(type: string, position: CANNON.Vec3): void {

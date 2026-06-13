@@ -22,6 +22,7 @@ export interface StickmanState {
   faction: 'red' | 'blue';
   healthBar: { bg: THREE.Mesh; fill: THREE.Mesh } | null;
   attackAnimTimer: number;
+  deathType: 'none' | 'bomb' | 'combat';
   partRefs: Map<string, THREE.Object3D>;
   animTime: number;
   animPhase: number;
@@ -130,6 +131,7 @@ export function createStickman(x: number, z: number, faction: 'red' | 'blue', hp
     faction,
     healthBar: { bg: barBg, fill: barFill },
     attackAnimTimer: 0,
+    deathType: 'none',
     partRefs,
     animTime: 0,
     animPhase: Math.random() * Math.PI * 2,
@@ -138,7 +140,7 @@ export function createStickman(x: number, z: number, faction: 'red' | 'blue', hp
   };
 }
 
-export function damageStickman(sm: StickmanState, amount: number): boolean {
+export function damageStickman(sm: StickmanState, amount: number, source: 'bomb' | 'combat' = 'bomb'): boolean {
   if (!sm.alive) return false;
   sm.hp -= amount;
 
@@ -162,7 +164,20 @@ export function damageStickman(sm: StickmanState, amount: number): boolean {
   });
   if (sm.hp <= 0) {
     sm.alive = false;
-    sm.deathTimer = 0.5;
+    sm.deathType = source;
+
+    if (source === 'combat') {
+      // Corpse: gray body, stay forever
+      sm.deathTimer = -1;
+      const bodyMesh = sm.partRefs?.get('body');
+      if (bodyMesh) (bodyMesh as THREE.Mesh).material = new THREE.MeshToonMaterial({ color: 0x666666 });
+      const headMesh = sm.partRefs?.get('head');
+      if (headMesh) (headMesh as THREE.Mesh).material = new THREE.MeshToonMaterial({ color: 0x999999 });
+      if (sm.healthBar) sm.healthBar.bg.visible = false;
+      sm.body.mass = 0;
+    } else {
+      sm.deathTimer = 0.5;
+    }
     const { partRefs } = sm;
     if (partRefs) {
       for (const part of partRefs.values()) {

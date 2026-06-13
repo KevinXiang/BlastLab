@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { StickmanState } from './stickman';
+import { StickmanState, damageStickman } from './stickman';
 import { BarracksState } from './barracks';
 import { PhysicsBody } from './physics';
 import {
@@ -461,6 +461,8 @@ export function processMoraleEvents(
           if (pos.distanceTo(event.pos) < event.radius) {
             smAI.fear = Math.min(100, smAI.fear + FEAR_EXPLOSION);
             smAI.dangerPos.copy(event.pos);
+            const dmgFactor = 1 - pos.distanceTo(event.pos) / event.radius;
+            damageStickman(smAI.stickman, 60 * dmgFactor, 'bomb');
           }
         }
         for (const b of barracksList) {
@@ -532,8 +534,7 @@ export function updateProjectiles(dt: number, aiStates: AIState[], scene: THREE.
       const dy = p.pos.y - (tp.y + 0.5);
       const dz = p.pos.z - tp.z;
       if (dx * dx + dy * dy + dz * dz < 0.25) {
-        target.stickman.hp = Math.max(0, target.stickman.hp - p.damage);
-        if (target.stickman.hp <= 0) target.stickman.alive = false;
+        damageStickman(target.stickman, p.damage, 'combat');
         hit = true;
         break;
       }
@@ -627,8 +628,7 @@ export function updateCombatAI(
   // Execute attack
   if (sm.state === 'combat_melee' && smAI.attackCooldown <= 0) {
     smAI.attackCooldown = COMBAT_MELEE_COOLDOWN;
-    smAI.combatTarget.stickman.hp = Math.max(0, smAI.combatTarget.stickman.hp - COMBAT_MELEE_DAMAGE);
-    if (smAI.combatTarget.stickman.hp <= 0) smAI.combatTarget.stickman.alive = false;
+    damageStickman(smAI.combatTarget.stickman, COMBAT_MELEE_DAMAGE, 'combat');
     sm.attackAnimTimer = 0.15;
   } else if (sm.state === 'combat_ranged' && smAI.attackCooldown <= 0) {
     smAI.attackCooldown = COMBAT_RANGED_COOLDOWN;
