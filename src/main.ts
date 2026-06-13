@@ -502,11 +502,16 @@ function animate() {
     if (sm.faction === 'red') { redTotal++; if (sm.alive) redAlive++; }
     else { blueTotal++; if (sm.alive) blueAlive++; }
   }
+  let winner: 'red' | 'blue' | 'draw' | 'none' = 'none';
+  if (redTotal > 0 && blueTotal > 0) {
+    winner = redAlive > blueAlive ? 'red' : blueAlive > redAlive ? 'blue' : 'draw';
+  }
   updateStickmanStats({
     total: stickmen.length,
     alive: redAlive + blueAlive,
     redTotal, redAlive,
     blueTotal, blueAlive,
+    winner,
   });
 
   // Panel toggle

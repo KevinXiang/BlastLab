@@ -11,6 +11,7 @@ export interface StickmanStats {
   redTotal: number;
   blueAlive: number;
   blueTotal: number;
+  winner: 'red' | 'blue' | 'draw' | 'none';
 }
 
 export function createUI(container: HTMLElement): UIState {
@@ -68,6 +69,11 @@ export function updateStickmanStats(stats: StickmanStats): void {
   }
 
   el.style.display = 'flex';
+  let winnerHtml = '';
+  if (stats.winner === 'red') winnerHtml = '<span title="红方优势" style="color:#ff6666;font-weight:bold;">🏆 红方优势</span>';
+  else if (stats.winner === 'blue') winnerHtml = '<span title="蓝方优势" style="color:#6666ff;font-weight:bold;">🏆 蓝方优势</span>';
+  else if (stats.winner === 'draw') winnerHtml = '<span title="平局" style="color:#ffd700;">⚖️ 平局</span>';
+
   el.innerHTML = [
     `<span title="总数">⚔️ ${stats.total}</span>`,
     `<span title="存活" style="color:#4caf50;">👤 ${stats.alive}</span>`,
@@ -75,7 +81,8 @@ export function updateStickmanStats(stats: StickmanStats): void {
     `<span title="红方存活" style="color:#ff4444;">❤️ ${stats.redAlive}</span>`,
     `<span title="蓝方总数" style="color:#6666ff;">🟦 ${stats.blueTotal}</span>`,
     `<span title="蓝方存活" style="color:#4488ff;">💙 ${stats.blueAlive}</span>`,
-  ].join('');
+    winnerHtml,
+  ].filter(Boolean).join('');
 }
 
 export function showFloatText(
